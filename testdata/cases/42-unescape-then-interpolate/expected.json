@@ -1,0 +1,7 @@
+{
+  "unescaped": "@file:5",
+  "unescaped_braced": "@file:5",
+  "unescaped_default": "@file:7",
+  "plain_unescape": "@file:literal",
+  "unescaped_escape": "@file:$EC_N"
+}

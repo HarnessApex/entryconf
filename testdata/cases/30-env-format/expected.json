@@ -1,0 +1,13 @@
+{
+  "plain": "plain",
+  "indented": "indented",
+  "tabbed": "tabbed",
+  "trimmed": "spaced out",
+  "whitespace_only": "",
+  "single": "single quoted",
+  "double": "double quoted",
+  "quoted_spaces": "  padded  ",
+  "trim_then_unquote": "padded then trimmed",
+  "hash": "value # not a comment",
+  "equals": "a=b=c"
+}

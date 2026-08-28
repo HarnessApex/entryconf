@@ -1,0 +1,5 @@
+# SPEC §2: a duplicate key within one document is E_PARSE (YAML parsers that
+# silently keep the last mapping entry are non-conformant).
+app: demo
+port: 8080
+app: shadowed

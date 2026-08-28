@@ -1,0 +1,3 @@
+{
+  "note": "the byte after this colon is 0xFF, which is not valid UTF-8: ÿ"
+}

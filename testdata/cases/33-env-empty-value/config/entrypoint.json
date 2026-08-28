@@ -1,0 +1,7 @@
+{
+  "with_default": "${EC_EMPTY:-fallback}",
+  "braced": "${EC_EMPTY}",
+  "shorthand": "$EC_EMPTY",
+  "embedded": "[${EC_EMPTY:-fallback}]",
+  "truly_unset_with_default": "${EC_NEVER_DEFINED:-fallback}"
+}

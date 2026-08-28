@@ -1,0 +1,5 @@
+{
+  "database": "@file:sub/db.yaml",
+  "cache": "@file:cache.toml",
+  "tags": ["static", "@file:sub/opts.json"]
+}

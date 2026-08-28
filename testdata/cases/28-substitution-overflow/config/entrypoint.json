@@ -1,0 +1,8 @@
+{
+  "big": "$EC_BIG",
+  "big_braced": "${EC_BIG}",
+  "big_default": "${EC_UNSET_BIG:-1e400}",
+  "small": "$EC_SMALL",
+  "finite": "$EC_FINITE",
+  "embedded": "size=$EC_BIG"
+}

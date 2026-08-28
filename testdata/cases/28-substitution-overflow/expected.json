@@ -1,0 +1,8 @@
+{
+  "big": "1e400",
+  "big_braced": "1e400",
+  "big_default": "1e400",
+  "small": "-1e400",
+  "finite": 10000000000,
+  "embedded": "size=1e400"
+}

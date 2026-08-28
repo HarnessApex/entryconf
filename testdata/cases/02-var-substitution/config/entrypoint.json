@@ -1,0 +1,6 @@
+{
+  "host": "${EC_HOST}",
+  "port": "${EC_PORT}",
+  "debug": "$EC_DEBUG",
+  "url": "http://${EC_HOST}:${EC_PORT}/"
+}

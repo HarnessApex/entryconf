@@ -1,0 +1,8 @@
+{
+  "dollar_form": "${EC_DOLLAR}",
+  "braced_form": "${EC_BRACED}",
+  "escape_form": "${EC_ESCAPE}",
+  "include_form": "${EC_INCLUDE}",
+  "malformed_form": "${EC_MALFORMED}",
+  "embedded_include": "[${EC_INCLUDE}]"
+}

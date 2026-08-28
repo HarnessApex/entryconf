@@ -1,0 +1,6 @@
+{
+  "app": "demo",
+  "port": 8080,
+  "database": { "host": "db.local", "tls": true },
+  "tags": ["static", "beta"]
+}

@@ -1,0 +1,3 @@
+[config_a]
+sub_config = "@file:sub.json"
+EC_A = "$EC_A"

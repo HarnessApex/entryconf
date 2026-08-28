@@ -1,0 +1,3 @@
+# SPEC §2: the core schema resolves .inf to a float with no JSON-equivalent
+# form, so it is E_PARSE rather than a string or a null.
+ratio: .inf

@@ -1,0 +1,4 @@
+# SPEC §2: .nan, like .inf (case 46), has no JSON-equivalent form: E_PARSE.
+# It gets its own case so an implementation cannot pass by rejecting only one
+# of the two spellings.
+ratio: .nan

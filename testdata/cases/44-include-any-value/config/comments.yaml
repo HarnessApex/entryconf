@@ -1,0 +1,2 @@
+# SPEC §2: a YAML document with no content — even one that holds only
+# comments — parses as null.

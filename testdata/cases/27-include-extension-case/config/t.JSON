@@ -1,0 +1,1 @@
+{ "note": "valid JSON, readable, and present: only the extension's case is wrong (SPEC §5 matches .json case-sensitively), so the fault is E_INCLUDE" }

@@ -1,0 +1,6 @@
+{
+  "config_a": {
+    "sub_config": { "k": "v" },
+    "EC_A": "hello"
+  }
+}

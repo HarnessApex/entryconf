@@ -1,0 +1,37 @@
+# SPEC §2 datetime rendering, exhaustively:
+#   - the date/time separator is always uppercase "T" (TOML also permits a
+#     space, and the authored form is not preserved);
+#   - a UTC offset written as "Z", "z", or "+00:00" renders as "Z";
+#   - any other offset keeps its authored numeric form (no shifting to UTC);
+#   - fractional seconds drop trailing zeros, and the "." goes with them when
+#     the fraction reaches zero;
+#   - local date-times, local dates, and local times keep their offset-less
+#     grammar fragment unchanged.
+# Fractions stay at millisecond precision on purpose: finer fractions are not
+# portable across stock TOML parsers.
+
+[utc]
+upper_z = 1979-05-27T00:32:00Z
+lower_z = 1979-05-27T00:32:00z
+plus_zero = 1979-05-27T00:32:00+00:00
+space_separator = 1979-05-27 00:32:00Z
+
+[fraction]
+half = 1979-05-27T00:32:00.500Z
+nines = 1979-05-27T00:32:00.999Z
+zeroed = 1979-05-27T00:32:00.000Z
+with_offset = 1979-05-27T00:32:00.500-07:00
+
+[offset]
+minus_seven = 1979-05-27T00:32:00-07:00
+plus_two = 2026-01-02T03:04:05+02:00
+
+[local]
+date_time = 1979-05-27T07:32:00
+date_time_fraction = 1979-05-27T07:32:00.500
+date = 1979-05-27
+time = 07:32:00
+time_fraction = 07:32:00.999
+
+[nested]
+all = [1979-05-27T00:32:00z, 1979-05-27T00:32:00.500+00:00, 07:32:00]

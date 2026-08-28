@@ -1,0 +1,8 @@
+{
+  "dollar_form": "$EC_TARGET",
+  "braced_form": "${EC_TARGET}",
+  "escape_form": "$$",
+  "include_form": "@file:sub.json",
+  "malformed_form": "100$",
+  "embedded_include": "[@file:sub.json]"
+}

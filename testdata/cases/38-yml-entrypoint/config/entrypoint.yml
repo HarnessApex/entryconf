@@ -1,0 +1,8 @@
+# SPEC §3: "entrypoint.yml" is an entrypoint spelling in its own right, and it
+# gets the full pipeline: includes (SPEC §5) and interpolation (SPEC §6).
+app: demo
+port: "${EC_YML_PORT}"
+database: "@file:db.yaml"
+tags:
+  - static
+  - "${EC_YML_TAG}"

@@ -1,0 +1,5 @@
+{
+  "host": "db.local",
+  "port": 5432,
+  "dsn": "postgres://db.local:5432/app"
+}

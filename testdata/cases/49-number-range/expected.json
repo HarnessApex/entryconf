@@ -1,0 +1,11 @@
+{
+  "note": "SPEC 2: numbers get at least IEEE-754 double range and precision; magnitudes above 2^53 are outside the portable guarantee and are never fixtured, so the integers here stop at 2^53-1",
+  "zero": 0,
+  "int_max_portable": 9007199254740991,
+  "int_min_portable": -9007199254740991,
+  "fraction": 1.5,
+  "negative_fraction": -0.125,
+  "large_exponent": 1e308,
+  "small_exponent": 1e-308,
+  "from_variable": 1.5e300
+}

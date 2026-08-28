@@ -1,0 +1,5 @@
+# SPEC §2: the YAML 1.2 core schema only; a custom tag is E_PARSE. The
+# document is otherwise well formed and its top level is an object, so the tag
+# is the single fault.
+plain: ok
+tagged: !custom 42

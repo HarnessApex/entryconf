@@ -1,0 +1,3 @@
+pool: "${EC_POOL:-10}"
+name: "${EC_GREETED:-guest}"
+greeting: "hello, ${EC_GREETED:-guest}!"

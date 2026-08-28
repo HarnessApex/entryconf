@@ -1,0 +1,34 @@
+[
+  {
+    "code": "E_NO_ENTRYPOINT",
+    "condition": "no entrypoint file in the directory"
+  },
+  {
+    "code": "E_MULTIPLE_ENTRYPOINTS",
+    "condition": "two or more entrypoint files"
+  },
+  {
+    "code": "E_PARSE",
+    "condition": "malformed config, env, or included file"
+  },
+  {
+    "code": "E_ENV_CONFLICT",
+    "condition": "a variable defined more than once across/within `*.env` files"
+  },
+  {
+    "code": "E_INCLUDE",
+    "condition": "`@file:` target missing, unreadable, or unsupported extension"
+  },
+  {
+    "code": "E_INCLUDE_CYCLE",
+    "condition": "a file transitively includes itself"
+  },
+  {
+    "code": "E_MISSING_VAR",
+    "condition": "reference to an unset variable with no default"
+  },
+  {
+    "code": "E_SUBSTITUTION",
+    "condition": "malformed `$` or `@` form"
+  }
+]

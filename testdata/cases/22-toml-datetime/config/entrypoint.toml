@@ -1,0 +1,8 @@
+# SPEC §2: TOML datetime values MUST be converted to their RFC 3339 string form.
+# The offset is part of the value and is preserved, not normalized to UTC.
+created = 1979-05-27T00:32:00-07:00
+
+[window]
+label = "release window"
+opens = 2026-01-02T03:04:05+02:00
+history = [1979-05-27T00:32:00-07:00, 2026-01-02T03:04:05+02:00]

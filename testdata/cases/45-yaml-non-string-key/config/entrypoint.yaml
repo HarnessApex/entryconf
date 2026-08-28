@@ -1,0 +1,4 @@
+# SPEC §2: mapping keys MUST be strings. Under the YAML 1.2 core schema the
+# plain scalar 1 resolves to an integer, so this key is not a string: E_PARSE.
+# (Quoting it — "1" — would make the document conformant.)
+1: numeric key

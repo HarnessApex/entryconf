@@ -1,0 +1,5 @@
+{
+  "@file:absent.json": "keys are never includes",
+  "@@doubled": "keys are never unescaped",
+  "@directive": "keys are never reserved directives"
+}

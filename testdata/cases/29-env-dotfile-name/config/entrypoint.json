@@ -1,0 +1,5 @@
+{
+  "host": "${EC_DOTFILE_HOST}",
+  "port": "${EC_DOTFILE_PORT}",
+  "dsn": "postgres://${EC_DOTFILE_HOST}:${EC_DOTFILE_PORT}/app"
+}

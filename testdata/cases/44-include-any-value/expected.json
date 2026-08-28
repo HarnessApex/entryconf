@@ -1,0 +1,10 @@
+{
+  "note": "SPEC 3 requires an OBJECT at the top level of the entrypoint only; SPEC 5 included files may hold any value, and an empty YAML document is null (SPEC 2)",
+  "empty_doc": null,
+  "comments_only": null,
+  "number": 42,
+  "array": [1, 2, 3],
+  "string": "plain string",
+  "boolean": true,
+  "in_array": ["static", null, 42]
+}

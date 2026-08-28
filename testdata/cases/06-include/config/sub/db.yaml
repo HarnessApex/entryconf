@@ -1,0 +1,3 @@
+# path below is relative to this file, i.e. sub/opts.json
+host: db.local
+options: "@file:opts.json"

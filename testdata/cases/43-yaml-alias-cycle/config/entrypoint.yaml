@@ -1,0 +1,6 @@
+# SPEC §2: anchors and aliases resolve to plain values, but aliases that form
+# a cycle are E_PARSE — the tree has no JSON-equivalent form. The document is
+# otherwise well formed (several YAML libraries happily build the recursive
+# structure), so the cycle is the single fault.
+a: &anchor
+  self: *anchor

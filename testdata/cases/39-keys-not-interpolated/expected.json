@@ -1,0 +1,9 @@
+{
+  "$EC_NAME": "SPEC 6: object keys are never interpolated, so a shorthand form in a key stays literal",
+  "${EC_NAME}": "the braced form in a key stays literal too",
+  "$$": "and so does an escape: a key is not scanned, so it is not unescaped either",
+  "100$": "keys are not scanned at all, so a malformed form in one is not E_SUBSTITUTION",
+  "${EC_NEVER_DEFINED_KEY}": "nor is an unset name in a key E_MISSING_VAR",
+  "value": "resolved",
+  "nested": { "$EC_NAME": "resolved" }
+}

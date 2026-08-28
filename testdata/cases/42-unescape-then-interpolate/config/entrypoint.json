@@ -1,0 +1,7 @@
+{
+  "unescaped": "@@file:$EC_N",
+  "unescaped_braced": "@@file:${EC_N}",
+  "unescaped_default": "@@file:${EC_UNSET_N:-7}",
+  "plain_unescape": "@@file:literal",
+  "unescaped_escape": "@@file:$$EC_N"
+}

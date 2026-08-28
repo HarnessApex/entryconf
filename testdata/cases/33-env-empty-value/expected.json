@@ -1,0 +1,7 @@
+{
+  "with_default": "",
+  "braced": "",
+  "shorthand": "",
+  "embedded": "[]",
+  "truly_unset_with_default": "fallback"
+}

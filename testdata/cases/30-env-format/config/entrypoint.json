@@ -1,0 +1,13 @@
+{
+  "plain": "${EC_PLAIN}",
+  "indented": "${EC_INDENTED}",
+  "tabbed": "${EC_TABBED}",
+  "trimmed": "${EC_TRIMMED}",
+  "whitespace_only": "${EC_WS_ONLY}",
+  "single": "${EC_SINGLE}",
+  "double": "${EC_DOUBLE}",
+  "quoted_spaces": "${EC_QUOTED_SPACES}",
+  "trim_then_unquote": "${EC_TRIM_THEN_UNQUOTE}",
+  "hash": "${EC_HASH}",
+  "equals": "${EC_EQUALS}"
+}

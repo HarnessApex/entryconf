@@ -1,0 +1,5 @@
+{
+  "pool": 10,
+  "name": "guest",
+  "greeting": "hello, guest!"
+}

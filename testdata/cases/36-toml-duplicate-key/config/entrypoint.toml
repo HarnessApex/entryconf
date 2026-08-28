@@ -1,0 +1,4 @@
+# SPEC §2: a duplicate key within one document is E_PARSE.
+app = "demo"
+port = 8080
+app = "shadowed"

@@ -1,0 +1,28 @@
+# SPEC §2 mandates the YAML 1.2 *core schema*, whose bool resolution regex is
+# exactly `true|True|TRUE|false|False|FALSE`. The YAML 1.1 booleans
+# on/off/yes/no/y/n are therefore ordinary strings, not booleans.
+on_lower: on
+on_title: On
+on_upper: ON
+off_lower: off
+off_title: Off
+off_upper: OFF
+yes_lower: yes
+yes_title: Yes
+yes_upper: YES
+no_lower: no
+no_title: No
+no_upper: NO
+y_lower: y
+n_lower: n
+
+# The only plain scalars the core schema resolves to booleans:
+true_lower: true
+true_title: True
+true_upper: TRUE
+false_lower: false
+false_title: False
+false_upper: FALSE
+
+# Same resolution rules apply to flow-sequence entries.
+mixed: [on, off, yes, no, true, false]

@@ -1,0 +1,6 @@
+# SPEC §2: a YAML file MUST contain at most one document; a multi-document
+# stream is E_PARSE. Each document below is on its own a valid top-level
+# object, so the only fault is that the stream holds two of them.
+app: demo
+---
+app: other
