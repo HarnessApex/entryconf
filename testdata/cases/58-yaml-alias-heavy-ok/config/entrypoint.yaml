@@ -1,0 +1,74 @@
+# The contrast to case 57. SPEC §2 bounds the size of the *expanded* tree, not
+# the number of alias references, so heavy but honest reuse MUST load. An
+# implementation that caps alias references instead of counting expanded nodes
+# fails here: this document makes 109 alias references, deliberately more than
+# the 100-alias default cap shipped by at least one widely used YAML library.
+#
+# Expansion, counted literally as SPEC §2 words it (every scalar value,
+# sequence element and mapping entry):
+#
+#   region                                          1
+#   limits          2 entries + 2 scalars           4
+#   tags            3 elements + 3 scalars          6
+#   row             3 elements + 3 x tags          21
+#   grid            2 elements + 2 x row           44
+#   matrix          2 elements + 2 x grid          90
+#   services       34 entries + 34 x 14           510
+#   top-level mapping entries                       7
+#   total                                         683
+#
+# 683 nodes is three orders of magnitude under the 1,000,000 budget, so no
+# reading of the counting rule (counting a scalar sequence element once or
+# twice, counting collection nodes themselves or not) can change the verdict.
+
+region: &region us-east-1
+
+limits: &limits
+  cpu: 2
+  memory: 512
+
+tags: &tags [alpha, beta, gamma]
+
+# Layered reuse, the honest kind: "matrix" expands to 2 x 2 x 3 x 3 = 36
+# scalars out of three lines of source. SPEC §2 resolves aliases to plain
+# values, so the tree carries no sharing — every site is a full copy.
+row: &row [*tags, *tags, *tags]
+grid: &grid [*row, *row]
+matrix: [*grid, *grid]
+
+# 34 services x 3 aliases = 102 of the 109 references.
+services:
+  svc01: {region: *region, limits: *limits, tags: *tags}
+  svc02: {region: *region, limits: *limits, tags: *tags}
+  svc03: {region: *region, limits: *limits, tags: *tags}
+  svc04: {region: *region, limits: *limits, tags: *tags}
+  svc05: {region: *region, limits: *limits, tags: *tags}
+  svc06: {region: *region, limits: *limits, tags: *tags}
+  svc07: {region: *region, limits: *limits, tags: *tags}
+  svc08: {region: *region, limits: *limits, tags: *tags}
+  svc09: {region: *region, limits: *limits, tags: *tags}
+  svc10: {region: *region, limits: *limits, tags: *tags}
+  svc11: {region: *region, limits: *limits, tags: *tags}
+  svc12: {region: *region, limits: *limits, tags: *tags}
+  svc13: {region: *region, limits: *limits, tags: *tags}
+  svc14: {region: *region, limits: *limits, tags: *tags}
+  svc15: {region: *region, limits: *limits, tags: *tags}
+  svc16: {region: *region, limits: *limits, tags: *tags}
+  svc17: {region: *region, limits: *limits, tags: *tags}
+  svc18: {region: *region, limits: *limits, tags: *tags}
+  svc19: {region: *region, limits: *limits, tags: *tags}
+  svc20: {region: *region, limits: *limits, tags: *tags}
+  svc21: {region: *region, limits: *limits, tags: *tags}
+  svc22: {region: *region, limits: *limits, tags: *tags}
+  svc23: {region: *region, limits: *limits, tags: *tags}
+  svc24: {region: *region, limits: *limits, tags: *tags}
+  svc25: {region: *region, limits: *limits, tags: *tags}
+  svc26: {region: *region, limits: *limits, tags: *tags}
+  svc27: {region: *region, limits: *limits, tags: *tags}
+  svc28: {region: *region, limits: *limits, tags: *tags}
+  svc29: {region: *region, limits: *limits, tags: *tags}
+  svc30: {region: *region, limits: *limits, tags: *tags}
+  svc31: {region: *region, limits: *limits, tags: *tags}
+  svc32: {region: *region, limits: *limits, tags: *tags}
+  svc33: {region: *region, limits: *limits, tags: *tags}
+  svc34: {region: *region, limits: *limits, tags: *tags}

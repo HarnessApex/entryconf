@@ -1,0 +1,11 @@
+{
+  "raw": "${EC_RAW}",
+  "trailing": "${EC_TRAILING}",
+  "mixed_double_first": "${EC_MIXED_DOUBLE_FIRST}",
+  "mixed_single_first": "${EC_MIXED_SINGLE_FIRST}",
+  "inner": "${EC_INNER}",
+  "trim_then_check": "${EC_TRIM_THEN_CHECK}",
+  "nested": "${EC_NESTED}",
+  "empty_quotes": "${EC_EMPTY_QUOTES}",
+  "closed": "${EC_CLOSED}"
+}

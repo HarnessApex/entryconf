@@ -1,0 +1,138 @@
+# SPEC §2 bounds alias expansion at 1,000,000 nodes, and states the counting
+# rule precisely: a scalar value counts one; a sequence or mapping contributes
+# one per element or entry PLUS each element value's own count; mapping keys are
+# not counted. So a flow sequence of 1,000 scalars counts 2,000 -- each element
+# once as an element slot and once as the scalar in it.
+#
+# Cases 57 and 58 are deliberately verdict-stable: 57 is 48x over the budget and
+# 58 is three orders of magnitude under it, so neither turns on how the rule is
+# read. This case is the one that does turn on it. It is over budget under the
+# SPEC rule and comfortably under budget under the naive "count each value node
+# once" rule, so an implementation using the naive rule loads it and fails here.
+#
+# Under the SPEC rule (element slot + the element value's own count):
+#
+#   row      1,000 elements + 1,000 scalars                    2,000
+#   bomb       600 elements + 600 x 2,000                  1,200,600
+#   top-level mapping: 2 entries                                   2
+#   total                                                  1,202,602
+#
+#   1,202,602 = 1.20x the budget, i.e. 202,602 nodes over -> E_PARSE.
+#
+# Under a naive one-count-per-value rule (every node, collection or scalar,
+# counted exactly once):
+#
+#   row      the sequence + 1,000 scalars                       1,001
+#   bomb     the sequence + 600 x 1,001                       600,601
+#   top-level mapping itself                                        1
+#   total                                                     601,603
+#
+#   601,603 = 0.60x the budget, i.e. 398,397 nodes under -> would load.
+#
+# A third reading, counting only scalars and no collection nodes at all, gives
+# 1,000 + 600 x 1,000 = 601,000 -- also far under. So every naive reading lands
+# ~40% below the line and the SPEC reading lands ~20% above it: the margin is
+# wide on both sides and the case cannot flip on an off-by-one.
+#
+# Single fault, as everywhere else in the suite: valid YAML 1.2, one document,
+# top-level mapping, strictly layered anchors (no cycle, contrast case 43), no
+# custom tags, no duplicate keys, and no "$" or "@" forms. Only the expansion
+# budget is exceeded.
+
+# A plain anchored flow sequence of 1,000 one-character scalars: 1,000 element
+# slots + 1,000 scalars = 2,000 nodes under the SPEC rule, 1,001 under the
+# naive one.
+row: &row [x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+  x, x, x]
+
+# 600 aliases to it. 600 x 2,000 + 600 = 1,200,600 nodes under the SPEC rule;
+# 600 x 1,001 + 1 = 600,601 under the naive one.
+bomb: [*row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row,
+  *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row, *row]

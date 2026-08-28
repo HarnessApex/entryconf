@@ -1,0 +1,19 @@
+{
+  "leading_zero": 10,
+  "leading_zeros_many": 7,
+  "zero": 0,
+  "zero_doubled": 0,
+  "negative_leading_zero": -10,
+  "positive_leading_zero": 10,
+
+  "octal": 8,
+  "octal_zero": 0,
+
+  "hex": 16,
+  "hex_lower": 255,
+
+  "quoted_double": "010",
+  "quoted_single": "010",
+
+  "mixed": [10, 8, 16, "010"]
+}

@@ -1,6 +1,6 @@
 # entryconf Specification
 
-**Version 0.1.0**
+**Version 0.2.0**
 
 entryconf defines how a *config directory* is loaded into a single tree.
 Implementations in any language MUST produce identical results for identical
@@ -36,9 +36,17 @@ object (string keys). Format-specific rules:
 
 - **YAML** MUST be parsed with the YAML 1.2 core schema. Custom tags are
   `E_PARSE`. Anchors and aliases are resolved at parse time and produce plain
-  values; aliases that form a cycle are `E_PARSE`. A file MUST contain at most
-  one document — a multi-document stream is `E_PARSE`. An empty document
-  parses as `null`.
+  values; aliases that form a cycle are `E_PARSE`. Alias expansion is bounded:
+  a document whose fully-expanded tree would exceed 1,000,000 nodes is
+  `E_PARSE` — this stops alias bombs while leaving orders of magnitude of
+  headroom over any plausible config. Nodes are counted recursively: a scalar
+  value counts one; a sequence or mapping contributes one per element or entry
+  **plus** each element value's own count; mapping keys are not counted (so a
+  sequence of 1,000 scalars counts 2,000: each element once as an entry slot
+  and once as a scalar). Core-schema resolution note: unquoted
+  `010` is the decimal integer 10 (YAML 1.2 has no leading-zero octal form;
+  octal is spelled `0o10`). A file MUST contain at most one document — a
+  multi-document stream is `E_PARSE`. An empty document parses as `null`.
 - **TOML** datetime values MUST be converted to RFC 3339-style strings: the
   date/time separator is uppercase `T`; a UTC offset (`Z`, `z`, or `+00:00` in
   the source) is written as `Z`; any other offset keeps its authored numeric

@@ -1,0 +1,31 @@
+# SPEC §2: "unquoted 010 is the decimal integer 10 (YAML 1.2 has no
+# leading-zero octal form; octal is spelled 0o10)."
+#
+# This is where stock YAML 1.1 parsers diverge: under YAML 1.1, 010 resolves
+# through the octal form to 8. The core schema's integer resolution is
+# [-+]?[0-9]+ for decimal, 0o[0-7]+ for octal and 0x[0-9a-fA-F]+ for hex, so a
+# leading zero is just a leading zero.
+
+# Decimal, leading zeros and all.
+leading_zero: 010
+leading_zeros_many: 0007
+zero: 0
+zero_doubled: 00
+negative_leading_zero: -010
+positive_leading_zero: +010
+
+# The only octal form the core schema has.
+octal: 0o10
+octal_zero: 0o0
+
+# Hex, for completeness of the integer forms.
+hex: 0x10
+hex_lower: 0xff
+
+# Quoting takes the scalar out of plain-scalar resolution entirely (case 52),
+# so a quoted 010 stays the three-character string.
+quoted_double: "010"
+quoted_single: '010'
+
+# The same resolution applies to flow-sequence entries.
+mixed: [010, 0o10, 0x10, "010"]

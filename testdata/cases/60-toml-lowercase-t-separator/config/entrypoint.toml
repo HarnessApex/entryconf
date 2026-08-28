@@ -1,0 +1,27 @@
+# TOML 1.0 accepts three date/time delimiters — "T", "t" and a space — because
+# its ABNF spells the delimiter as a case-insensitive literal (`time-delim =
+# "T" / %x20 ; T, t, or space`). SPEC §2 renders all three the same way: "the
+# date/time separator is uppercase T", and the authored form is not preserved.
+#
+# Case 26 covers the space delimiter and the lowercase "z" offset; this case is
+# the lowercase "t", combined with each offset and fraction shape so nothing
+# about the delimiter can leak into the rest of the rendering.
+
+lower_t = 1979-05-27t07:32:00z
+lower_t_upper_z = 1979-05-27t07:32:00Z
+lower_t_plus_zero = 1979-05-27t07:32:00+00:00
+lower_t_offset = 1979-05-27t07:32:00-07:00
+
+# Fractional seconds drop trailing zeros, and the "." goes with them once the
+# fraction reaches zero.
+lower_t_fraction = 1979-05-27t07:32:00.500z
+lower_t_fraction_zeroed = 1979-05-27t07:32:00.000z
+lower_t_fraction_offset = 1979-05-27t07:32:00.500-07:00
+
+# A local date-time keeps its offset-less grammar fragment; only the delimiter
+# is normalized.
+lower_t_local = 1979-05-27t07:32:00
+lower_t_local_fraction = 1979-05-27t07:32:00.250
+
+[nested]
+all = [1979-05-27t07:32:00z, 1979-05-27t07:32:00.500+00:00, 1979-05-27t07:32:00]

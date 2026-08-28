@@ -1,0 +1,52 @@
+{
+  "region": "us-east-1",
+  "limits": { "cpu": 2, "memory": 512 },
+  "tags": ["alpha", "beta", "gamma"],
+
+  "row": [["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"]],
+  "grid": [
+    [["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"]],
+    [["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"]]
+  ],
+  "matrix": [
+    [[["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"]], [["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"]]],
+    [[["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"]], [["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"], ["alpha", "beta", "gamma"]]]
+  ],
+
+  "services": {
+    "svc01": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc02": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc03": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc04": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc05": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc06": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc07": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc08": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc09": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc10": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc11": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc12": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc13": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc14": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc15": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc16": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc17": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc18": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc19": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc20": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc21": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc22": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc23": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc24": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc25": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc26": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc27": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc28": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc29": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc30": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc31": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc32": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc33": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] },
+    "svc34": { "region": "us-east-1", "limits": { "cpu": 2, "memory": 512 }, "tags": ["alpha", "beta", "gamma"] }
+  }
+}

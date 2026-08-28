@@ -1,0 +1,37 @@
+# SPEC §2 bounds alias expansion: a document whose fully expanded tree would
+# exceed 1,000,000 nodes (each scalar value, sequence element and mapping entry
+# counting as one) is E_PARSE. This is the alias bomb that bound exists for.
+#
+# The anchors are strictly layered — layer N references layer N-1 and nothing
+# else, nine times — so there is no cycle (contrast case 43), and nothing else
+# about the document is wrong: valid YAML 1.2, a single document, top-level
+# mapping, no custom tags, no duplicate keys, and no "$" or "@" forms anywhere.
+# The expansion budget is the only fault.
+#
+# Each layer multiplies the previous one by nine, so layer N expands to 9^N
+# nodes:
+#
+#   layer0                1        layer5           59,049
+#   layer1                9        layer6          531,441
+#   layer2               81        layer7        4,782,969   <- over budget
+#   layer3              729        layer8       43,046,721
+#   layer4            6,561        total        48,427,561   = (9^9 - 1) / 8
+#
+# So the document expands to 48,427,561 nodes, roughly 48x the budget, out of
+# 72 alias references and a couple of dozen lines of source. (Counting each
+# scalar inside a sequence twice — once as an element, once as a scalar — only
+# doubles that; no reading of the counting rule brings it near 1,000,000.)
+#
+# An implementation that computes expanded size bottom-up over the anchor graph
+# settles this in 72 steps and rejects it instantly. One that materializes the
+# expansion first does not finish.
+
+layer0: &layer0 seed
+layer1: &layer1 [*layer0, *layer0, *layer0, *layer0, *layer0, *layer0, *layer0, *layer0, *layer0]
+layer2: &layer2 [*layer1, *layer1, *layer1, *layer1, *layer1, *layer1, *layer1, *layer1, *layer1]
+layer3: &layer3 [*layer2, *layer2, *layer2, *layer2, *layer2, *layer2, *layer2, *layer2, *layer2]
+layer4: &layer4 [*layer3, *layer3, *layer3, *layer3, *layer3, *layer3, *layer3, *layer3, *layer3]
+layer5: &layer5 [*layer4, *layer4, *layer4, *layer4, *layer4, *layer4, *layer4, *layer4, *layer4]
+layer6: &layer6 [*layer5, *layer5, *layer5, *layer5, *layer5, *layer5, *layer5, *layer5, *layer5]
+layer7: &layer7 [*layer6, *layer6, *layer6, *layer6, *layer6, *layer6, *layer6, *layer6, *layer6]
+layer8: &layer8 [*layer7, *layer7, *layer7, *layer7, *layer7, *layer7, *layer7, *layer7, *layer7]

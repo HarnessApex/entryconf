@@ -1,0 +1,11 @@
+{
+  "raw": "\"unclosed",
+  "trailing": "unclosed\"",
+  "mixed_double_first": "\"mixed'",
+  "mixed_single_first": "'mixed\"",
+  "inner": "say \"hi\"",
+  "trim_then_check": "\"unclosed",
+  "nested": "a \"b\" c",
+  "empty_quotes": "",
+  "closed": "closed"
+}
