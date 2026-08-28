@@ -10,7 +10,7 @@ permissions:
 jobs:
   lint-cases:
     name: lint conformance cases
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -25,7 +25,7 @@ jobs:
 
   go:
     name: go
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -38,7 +38,7 @@ jobs:
 
   python:
     name: python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     strategy:
       fail-fast: false
       matrix:
@@ -58,7 +58,7 @@ jobs:
 
   ts:
     name: ts
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -75,7 +75,7 @@ jobs:
 
   rust:
     name: rust
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -85,7 +85,7 @@ jobs:
 
   crosscheck:
     name: cross-implementation diff
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -114,7 +114,7 @@ jobs:
     # them away. Nothing is uploaded to any registry, and there is deliberately
     # no real publish/release job in this workflow.
     name: packaging dry run
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
