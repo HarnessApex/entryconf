@@ -1,0 +1,17 @@
+// Build config for the published artifact. `tsconfig.json` stays the dev/CI
+// type-check config (noEmit, src + test); this one emits compiled JS and .d.ts
+// from src/ only, because Node does NOT type-strip inside node_modules — a
+// consumer of the package needs real .js.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    // Sources import each other with explicit `.ts` extensions (Node's
+    // type-stripping requires that); this rewrites them to `.js` on emit.
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src/**/*.ts"]
+}
