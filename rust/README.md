@@ -1,6 +1,6 @@
 # entryconf (Rust)
 
-Implements **entryconf spec 0.1.0** (`../SPEC.md`). Conformance is defined by the
+Implements **entryconf spec 0.2.0** (`../SPEC.md`). Conformance is defined by the
 shared fixture suite in `../testdata/cases/`, which this crate's single test
 harness walks.
 
@@ -8,7 +8,7 @@ harness walks.
 
 ```toml
 [dependencies]
-entryconf = "0.1"
+entryconf = "0.2"
 ```
 
 Or, from inside this repository, as a path dependency:
@@ -59,10 +59,19 @@ match entryconf::load(Path::new("envs/deploy")) {
 ## Dump (cross-implementation checking)
 
 `entryconf-dump` loads a config directory and prints the tree as a single line
-of JSON on stdout, exit 0. On failure it prints only the `E_*` code on stderr
-and exits 1 (`-v` adds the non-normative detail message on a second line).
-Object keys are emitted in sorted order, so output is byte-comparable across
-runs.
+of JSON on stdout. Object keys are emitted in sorted order, so output is
+byte-comparable across runs. It follows the exit-code convention every
+implementation's dump CLI shares:
+
+| Outcome | stdout | stderr | Exit |
+|---|---|---|---|
+| success | the tree, one line of JSON | — | 0 |
+| **load** failure | — | the bare `E_*` code as the first line (`-v` adds the non-normative detail on a second) | 1 |
+| any other fault (usage, internal) | — | a plain message, never an `E_*` code | 2 |
+
+The split matters for the cross-check: exit 1 with a code is a verdict *about
+the config*, and exit 2 means the tool itself was misused, so a broken
+invocation can never be mistaken for a conformance result.
 
 ```console
 $ cargo run --quiet --bin entryconf-dump -- ../testdata/cases/01-basic/config
@@ -72,6 +81,11 @@ $ cargo run --quiet --bin entryconf-dump -- ../testdata/cases/05-env-conflict/co
 E_ENV_CONFLICT
 $ echo $?
 1
+
+$ cargo run --quiet --bin entryconf-dump
+usage: entryconf-dump [-v] [--] <config-dir>
+$ echo $?
+2
 ```
 
 Or build once and invoke the binary directly:
@@ -112,7 +126,16 @@ reads `std::env`.
   loader, so YAML 1.2 **core schema** resolution, custom-tag rejection, and
   duplicate-key detection are all under this crate's control. `on`/`off`/
   `yes`/`no`/`y`/`n` are plain strings; only `true|True|TRUE|false|False|FALSE`
-  are booleans. Anchors and aliases resolve to plain values.
+  are booleans. Anchors and aliases resolve to plain values, under a **node
+  budget**: the walk charges SPEC §2's counting rule against the
+  1,000,000-node bound — a scalar value costs one, a sequence or mapping costs
+  one per element or entry *plus* each element value's own count, and a value
+  in mapping-key position costs nothing at all, because keys are not counted.
+  An alias is charged the whole SPEC §2 count of the anchored
+  subtree — read from the anchor table — *before* that subtree is cloned. So a
+  layered alias bomb is rejected as `E_PARSE` after work proportional to the
+  budget rather than to its 48-million-node expansion (case 57 settles in
+  milliseconds); it is an accounted bound, not a timeout.
 - **JSON** uses `serde_json`'s parser driven by a custom visitor, because
   `serde_json::Value`'s stock `Deserialize` silently last-wins on duplicate
   keys, which SPEC §2 makes `E_PARSE`.

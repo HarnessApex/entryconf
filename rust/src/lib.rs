@@ -1,6 +1,6 @@
 //! entryconf — load a config directory into a single tree.
 //!
-//! Implements [entryconf spec 0.1.0](../../SPEC.md): one
+//! Implements [entryconf spec 0.2.0](../../SPEC.md): one
 //! `entrypoint.{json,yaml,yml,toml}` per directory, `*.env` variable files as
 //! unordered peers with the process environment on top, `@file:` include
 //! grafting, and `$NAME` / `${NAME}` / `${NAME:-default}` interpolation.
@@ -137,6 +137,9 @@ fn find_entrypoint(dir: &Path) -> Result<PathBuf, Error> {
         .collect();
 
     match found.len() {
+        // SPEC §3 folds "directory does not exist or cannot be read" into this
+        // same code: with nothing readable there is no entrypoint, and
+        // `is_file()` on a path under a missing directory is simply false.
         0 => Err(Error::new(
             ErrorCode::NoEntrypoint,
             format!("no entrypoint.{{json,yaml,yml,toml}} in {}", dir.display()),
@@ -155,5 +158,42 @@ fn find_entrypoint(dir: &Path) -> Result<PathBuf, Error> {
                     .join(", ")
             ),
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+    use std::path::Path;
+
+    use crate::{load_with_env, ErrorCode};
+
+    /// SPEC §3: "A config directory that does not exist or cannot be read is
+    /// `E_NO_ENTRYPOINT`."
+    ///
+    /// This lives here rather than in `testdata/cases/` because git cannot
+    /// track a directory that does not exist — the fixture suite has no way to
+    /// express "no `config/` at all", so the rule needs a unit test.
+    #[test]
+    fn missing_config_directory_is_no_entrypoint() {
+        let env = BTreeMap::new();
+        let absent = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/no-such-config-dir");
+        assert!(!absent.exists(), "the test path must not exist");
+
+        let err = load_with_env(&absent, &env).expect_err("a missing directory cannot load");
+        assert_eq!(err.kind(), ErrorCode::NoEntrypoint);
+        assert_eq!(err.code(), "E_NO_ENTRYPOINT");
+    }
+
+    /// The same code covers a path that exists but is not a directory: there is
+    /// no entrypoint inside a regular file either.
+    #[test]
+    fn a_file_used_as_a_config_directory_is_no_entrypoint() {
+        let env = BTreeMap::new();
+        let not_a_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        assert!(not_a_dir.is_file(), "the test path must be a regular file");
+
+        let err = load_with_env(&not_a_dir, &env).expect_err("a file cannot load");
+        assert_eq!(err.kind(), ErrorCode::NoEntrypoint);
     }
 }
