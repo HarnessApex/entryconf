@@ -50,11 +50,13 @@ export function parseDocument(
   const source = stripBom(text);
   switch (format) {
     case "json":
-      return normalize(parseJson(source, path), path);
+      return normalize(parseJson(source, path), path, false);
     case "yaml":
-      return normalize(parseYaml(source, path), path);
+      // Only YAML has aliases, so only YAML carries the expansion budget
+      // (SPEC §2); a legitimately huge JSON or TOML document is not bounded.
+      return normalize(parseYaml(source, path), path, true);
     case "toml":
-      return normalize(parseToml(source, path), path);
+      return normalize(parseToml(source, path), path, false);
   }
 }
 
@@ -136,7 +138,12 @@ function parseYaml(text: string, path: string): unknown {
     logLevel: "silent",
     schema: "core",
     version: "1.2",
-    uniqueKeys: true,
+    // Duplicate keys are E_PARSE (SPEC §2), but the `yaml` package's own
+    // `uniqueKeys` check compares each new key against every key already in
+    // the mapping — quadratic, and ruinous on a large alias-free mapping
+    // (hundreds of seconds for a few hundred thousand entries). Detect them
+    // linearly in `assertYamlKeys` instead, which already visits every Pair.
+    uniqueKeys: false,
     merge: false,
     intAsBigInt: false,
   });
@@ -156,16 +163,53 @@ function parseYaml(text: string, path: string): unknown {
       throw parseError(path, warning.message);
     }
   }
-  assertStringYamlKeys(doc, path);
+  // Runs on the AST, before `toJS` expands aliases and before the node budget
+  // is charged, so a document that is both duplicate-keyed and oversized is
+  // rejected on the key — a dup-key bomb cannot slip past the check by being
+  // expensive to expand.
+  assertYamlKeys(doc, path);
   try {
-    return doc.toJS();
+    // `maxAliasCount` is a *toJS* option, and its default (100) counts alias
+    // references rather than expanded nodes: it rejects honest heavy reuse
+    // (case 58 makes 109 references expanding to well under a thousand nodes)
+    // while saying nothing about the actual expanded size. Disable it and let
+    // `normalize` enforce the real budget SPEC §2 specifies. With aliases
+    // unresolved into copies, `toJS` returns a cheap shared graph — repeated
+    // aliases to one anchor yield the *same* object — so the expansion (and
+    // the blowup an alias bomb is after) happens in `normalize`, which is
+    // where the node count has to be charged.
+    return doc.toJS({ maxAliasCount: -1 });
   } catch (err) {
     throw parseError(path, (err as Error).message);
   }
 }
 
-function assertStringYamlKeys(doc: YAML.Document.Parsed, path: string): void {
+/**
+ * Enforce the two key rules of SPEC §2 in one AST walk: mapping keys MUST be
+ * strings, and a duplicate key within one document is `E_PARSE`.
+ *
+ * Both checks run on the parsed AST, where every anchor appears exactly once
+ * and an alias is a single node, so the walk costs the size of the *source*
+ * document rather than the size of its expansion — and it is linear in that
+ * size: each mapping's keys go into a `Set` of strings, one lookup per entry,
+ * in place of the `yaml` package's pairwise `uniqueKeys` comparison.
+ */
+function assertYamlKeys(doc: YAML.Document.Parsed, path: string): void {
   YAML.visit(doc, {
+    Map(_key, node) {
+      const seen = new Set<string>();
+      for (const pair of node.items) {
+        const k = pair.key;
+        // Non-string keys are rejected by the `Pair` visitor below, which this
+        // pre-order walk reaches right after this mapping; skip them here so
+        // the two checks cannot disagree about what a key's text is.
+        if (!YAML.isScalar(k) || typeof k.value !== "string") continue;
+        if (seen.has(k.value)) {
+          throw parseError(path, `duplicate key ${JSON.stringify(k.value)}`);
+        }
+        seen.add(k.value);
+      }
+    },
     Pair(_key, pair) {
       const k = pair.key;
       if (!YAML.isScalar(k) || typeof k.value !== "string") {
@@ -317,20 +361,68 @@ function tomlDateToString(date: Date): string {
 // --- normalization ---------------------------------------------------------
 
 /**
- * Convert a parser's output into the JSON-equivalent data model, rejecting
- * anything that is not representable (SPEC §2). `ancestors` catches a YAML
- * alias that refers to one of its own ancestors, which resolves to a cyclic
- * structure rather than a plain value.
+ * SPEC §2: a YAML document whose fully expanded tree would exceed this many
+ * nodes is `E_PARSE`. Each scalar value, sequence element, and mapping entry
+ * counts as one.
  */
-function normalize(
-  value: unknown,
-  path: string,
-  ancestors: Set<object> = new Set(),
-): Value {
-  if (value === null || value === undefined) return null;
+export const MAX_EXPANDED_NODES = 1_000_000;
+
+/** State threaded through the normalization walk. */
+interface NormalizeContext {
+  readonly path: string;
+  /**
+   * The chain of collections currently being walked, so an alias pointing at
+   * one of its own ancestors — a cyclic structure rather than a plain value —
+   * is caught. Entries are removed on the way back out, so a node reachable
+   * many times over (the normal alias case) is not mistaken for a cycle.
+   */
+  readonly ancestors: Set<object>;
+  /** Nodes still affordable, or null when no budget applies (JSON/TOML). */
+  budget: number | null;
+}
+
+/**
+ * Convert a parser's output into the JSON-equivalent data model, rejecting
+ * anything that is not representable (SPEC §2).
+ *
+ * When `bounded` (YAML), the walk also charges the alias-expansion budget.
+ * The walk *is* the expansion: `toJS` hands back a graph in which every alias
+ * to one anchor is the same object, and rebuilding it here into a plain tree
+ * duplicates those shared structures. So counting nodes as they are produced
+ * measures exactly what SPEC §2 bounds — the size of the expanded tree — and
+ * an alias bomb is stopped after a million nodes instead of materializing all
+ * 48 million of them.
+ */
+function normalize(value: unknown, path: string, bounded: boolean): Value {
+  return normalizeValue(value, {
+    path,
+    ancestors: new Set(),
+    budget: bounded ? MAX_EXPANDED_NODES : null,
+  });
+}
+
+/** Charge one node against the budget, failing once it is spent. */
+function charge(ctx: NormalizeContext): void {
+  if (ctx.budget === null) return;
+  if (ctx.budget === 0) {
+    throw parseError(
+      ctx.path,
+      `alias expansion exceeds the ${MAX_EXPANDED_NODES}-node budget`,
+    );
+  }
+  ctx.budget -= 1;
+}
+
+function normalizeValue(value: unknown, ctx: NormalizeContext): Value {
+  const path = ctx.path;
+  if (value === null || value === undefined) {
+    charge(ctx);
+    return null;
+  }
   switch (typeof value) {
     case "boolean":
     case "string":
+      charge(ctx);
       return value;
     case "number":
       if (!Number.isFinite(value)) {
@@ -339,6 +431,7 @@ function normalize(
           `${String(value)} is not representable in the JSON-equivalent data model`,
         );
       }
+      charge(ctx);
       return value;
     case "bigint":
       throw parseError(path, "integer is out of range for a JSON number");
@@ -347,23 +440,32 @@ function normalize(
     default:
       throw parseError(path, `unsupported value of type ${typeof value}`);
   }
-  if (value instanceof Date) return tomlDateToString(value);
+  if (value instanceof Date) {
+    charge(ctx);
+    return tomlDateToString(value);
+  }
 
   const node = value as object;
-  if (ancestors.has(node)) {
+  if (ctx.ancestors.has(node)) {
     throw parseError(path, "recursive alias does not resolve to a plain value");
   }
-  ancestors.add(node);
+  ctx.ancestors.add(node);
   try {
     if (Array.isArray(value)) {
-      return value.map((item) => normalize(item, path, ancestors));
+      const items: Value[] = [];
+      for (const item of value) {
+        charge(ctx); // the sequence element
+        items.push(normalizeValue(item, ctx));
+      }
+      return items;
     }
     const out = emptyObject();
     for (const [key, item] of Object.entries(node)) {
-      setKey(out, key, normalize(item, path, ancestors));
+      charge(ctx); // the mapping entry
+      setKey(out, key, normalizeValue(item, ctx));
     }
     return out;
   } finally {
-    ancestors.delete(node);
+    ctx.ancestors.delete(node);
   }
 }

@@ -1,6 +1,6 @@
 # entryconf (TypeScript)
 
-Implements the **entryconf spec 0.1.0** (`../SPEC.md`). Conformance is defined
+Implements the **entryconf spec 0.2.0** (`../SPEC.md`). Conformance is defined
 by the shared fixture suite in `../testdata/cases/`.
 
 Development runs straight from source: Node 22+ executes `.ts` directly via
@@ -44,9 +44,22 @@ reads the real process environment, which overrides `*.env` values (SPEC §4).
 node src/cli.ts <config-dir>
 ```
 
-Prints the loaded tree as JSON on stdout and exits 0; on failure prints the
-`E_*` code alone on stderr and exits 1 (usage errors exit 2). Set process-env
-variables the usual way: `EC_HOST=prod node src/cli.ts ./config`.
+Exit codes follow the repo-wide dump-CLI convention, so a harness can tell a
+conformance result from a broken tool:
+
+| Exit | Meaning |
+|---|---|
+| 0 | the tree is on stdout as JSON |
+| 1 | the load failed — the bare `E_*` code is the first line on stderr |
+| 2 | any other fault (usage, internal) — no `E_*` code is printed |
+
+The tool takes exactly one positional argument and knows no options, so a
+dash-led first argument is a usage fault, never a directory name: `--help` and
+`-h` print the usage line on stdout and exit 0, anything else starting with `-`
+exits 2. Neither ever prints an `E_*` code.
+
+Set process-env variables the usual way:
+`EC_HOST=prod node src/cli.ts ./config`.
 
 ## Test
 
@@ -87,8 +100,20 @@ instead.
   document is then re-scanned at token level to reject them (`E_PARSE`,
   SPEC §2).
 - YAML uses the `yaml` package's YAML 1.2 core schema, so `yes`/`no`/`on`/`off`
-  are strings; unresolvable (custom) tags, duplicate keys, non-string mapping
-  keys, multi-document streams, and non-finite numbers are `E_PARSE`.
+  are strings and an unquoted `010` is the decimal integer 10; unresolvable
+  (custom) tags, duplicate keys, non-string mapping keys, multi-document
+  streams, and non-finite numbers are `E_PARSE`.
+- Alias expansion is bounded by a real node budget (`E_PARSE` past 1,000,000
+  nodes, SPEC §2), not by the `yaml` package's `maxAliasCount`, whose default
+  counts alias *references* — that rejects honest heavy reuse while saying
+  nothing about expanded size, so it is disabled (`maxAliasCount: -1`).
+  `toJS` then returns a cheap shared graph (every alias to one anchor is the
+  same object), and the normalization walk that rebuilds it into a plain tree
+  charges SPEC §2's rule as it goes: one per scalar value, and one per
+  sequence element or mapping entry *plus* that element value's own count,
+  with mapping keys charged nothing. So an
+  alias bomb fails after a million nodes rather than materializing tens of
+  millions, and the same walk still catches an alias that resolves to a cycle.
 - TOML datetimes are converted to their RFC 3339 string form, preserving the
   authored shape (offset date-time, local date-time, local date, local time).
   `smol-toml`'s `TomlDate.toISOString()` keeps the source's own spelling and

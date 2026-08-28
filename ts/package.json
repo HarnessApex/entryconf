@@ -1,7 +1,7 @@
 {
   "name": "entryconf",
-  "version": "0.1.0",
-  "description": "Load a config directory (one entrypoint + *.env + @file: includes + $VAR interpolation) into a single tree. Implements the entryconf spec 0.1.0.",
+  "version": "0.2.0",
+  "description": "Load a config directory (one entrypoint + *.env + @file: includes + $VAR interpolation) into a single tree. Implements the entryconf spec 0.2.0.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -27,7 +27,7 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "prepack": "npm run clean && npm run build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/conformance.test.ts",
+    "test": "node --test test/*.test.ts",
     "dump": "node src/cli.ts"
   },
   "dependencies": {

@@ -19,7 +19,7 @@ const ENTRYPOINTS: [name: string, format: Format][] = [
 ];
 
 /**
- * Load a config directory into a single tree (entryconf spec 0.1.0).
+ * Load a config directory into a single tree (entryconf spec 0.2.0).
  *
  * Locates the entrypoint (§3), builds the variable namespace from the
  * directory's `*.env` files and the process environment (§4), resolves every
