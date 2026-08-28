@@ -15,7 +15,7 @@ import (
 )
 
 // specVersion is the version of SPEC.md this build implements.
-const specVersion = "0.1.0"
+const specVersion = "0.2.0"
 
 const usage = `entryconf — load a config directory into a single tree (entryconf spec ` + specVersion + `)
 
@@ -35,7 +35,8 @@ process environment taking precedence.
 Exit status:
   0   the directory loaded; the tree is on stdout
   1   the load failed; the first line of stderr is the E_* error code
-  2   the command line was wrong
+  2   any other fault (a wrong command line, or an internal error); no E_*
+      code is printed, so an E_* code on stderr always means a load failure
 
 Examples:
   entryconf dump ./envs/staging
@@ -85,9 +86,18 @@ func runDump(args []string, stdout, stderr io.Writer) int {
 
 	tree, err := entryconf.Load(fs.Arg(0))
 	if err != nil {
-		// The first line of stderr is exactly the E_* code, so other tools can
-		// compare it across implementations.
-		fmt.Fprintf(stderr, "%s\nentryconf: %s\n", errorCode(err), err)
+		// A load failure, and only a load failure, prints a code: the first
+		// line of stderr is exactly the E_* code, so other tools can compare
+		// it across implementations.
+		var ecErr *entryconf.Error
+		if !errors.As(err, &ecErr) {
+			// Unreachable: Load's contract is that every failure carries a
+			// SPEC §7 code. An uncoded error is an internal fault, not a
+			// verdict about the config, so it must not be given a code.
+			fmt.Fprintf(stderr, "entryconf: internal error: %s\n", err)
+			return 2
+		}
+		fmt.Fprintf(stderr, "%s\nentryconf: %s\n", ecErr.Code(), err)
 		return 1
 	}
 
@@ -101,26 +111,14 @@ func runDump(args []string, stdout, stderr io.Writer) int {
 	enc.SetEscapeHTML(false)
 	if err := enc.Encode(tree); err != nil {
 		// Unreachable: SPEC §2 makes the tree JSON-equivalent, and Load
-		// rejects any value that is not. Still coded, so every exit-1 path
-		// keeps the "first stderr line is an E_* code" contract.
-		fmt.Fprintf(stderr, "%s\nentryconf: cannot encode tree as JSON: %s\n", entryconf.CodeParse, err)
-		return 1
+		// rejects any value that is not. If it ever happens the load already
+		// succeeded, so this is an internal fault: exit 2 with no E_* code.
+		fmt.Fprintf(stderr, "entryconf: internal error: cannot encode tree as JSON: %s\n", err)
+		return 2
 	}
 	if _, err := stdout.Write(buf.Bytes()); err != nil {
 		fmt.Fprintf(stderr, "entryconf: cannot write output: %s\n", err)
-		return 1
+		return 2
 	}
 	return 0
-}
-
-// errorCode is the E_* code printed on the first line of stderr. Load always
-// returns an *entryconf.Error; E_PARSE is the documented code for unreadable
-// or malformed input and stands in if an error ever arrives unwrapped, so the
-// contract holds unconditionally.
-func errorCode(err error) string {
-	var ecErr *entryconf.Error
-	if errors.As(err, &ecErr) {
-		return ecErr.Code()
-	}
-	return entryconf.CodeParse
 }

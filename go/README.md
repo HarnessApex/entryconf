@@ -4,7 +4,7 @@ Go implementation of the entryconf convention: load a config directory — one
 entrypoint file, any number of `*.env` variable files, `@file:` includes and
 `$VAR` interpolation — into a single tree.
 
-Implements entryconf spec 0.1.0 (`../SPEC.md`). Conformance is defined by the
+Implements entryconf spec 0.2.0 (`../SPEC.md`). Conformance is defined by the
 shared fixture suite in `../testdata/cases`.
 
 ## Install
@@ -66,8 +66,10 @@ E_INCLUDE_CYCLE                                        # stderr, exit 1
 entryconf: E_INCLUDE_CYCLE: include cycle: ...         # stderr
 ```
 
-`dump -c` (or `--compact`) prints a single line. A malformed command line
-exits 2, so usage mistakes are distinguishable from load failures.
+`dump -c` (or `--compact`) prints a single line. Every other fault — a
+malformed command line, or an internal error such as output that cannot be
+written — exits **2 and prints no `E_*` code**, so an `E_*` code on stderr
+always means the config was rejected, never that the tool misfired.
 `entryconf help` and `entryconf version` do what they say.
 
 ## Tests
@@ -84,5 +86,17 @@ Per SPEC §8 a case's variables must be set exactly as `procenv.json` says and
 otherwise unset. The harness therefore injects the case's environment through
 an internal seam (`load(dir, envSource)`) instead of mutating the real process
 environment: fixtures cannot see stray variables, and the subtests need no
-serialization. The public `Load` reads the real process environment, which one
-extra test covers with `t.Setenv`.
+serialization.
+
+Three things the fixtures cannot express are covered by unit tests beside the
+harness:
+
+- `TestLoadUsesProcessEnvironment` — the public `Load` reads the *real* process
+  environment and it overrides a `*.env` value (`t.Setenv`).
+- `TestLoadMissingDirectory` — a config directory that does not exist (or is a
+  file) is `E_NO_ENTRYPOINT`; git cannot carry a case with no `config/`.
+- `cmd/entryconf` tests — the CLI convention: a load failure exits 1 with the
+  bare `E_*` code as the first line of stderr; any other fault exits 2 and
+  prints no code; and the alias bomb of case 57 is rejected in milliseconds,
+  because the SPEC §2 budget is counted as nodes are produced rather than
+  enforced by a timeout.

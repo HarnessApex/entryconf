@@ -191,7 +191,40 @@ func parseYAML(path string, data []byte) (any, error) {
 	if doc == nil || doc.Kind == 0 {
 		return nil, nil // empty document (SPEC §2)
 	}
-	return yamlValue(doc, path, map[*yaml.Node]bool{})
+	c := &yamlConv{path: path, active: map[*yaml.Node]bool{}}
+	return c.value(doc)
+}
+
+// maxYAMLNodes is the alias-expansion budget of SPEC §2: a document whose
+// fully expanded tree would exceed this many nodes is E_PARSE.
+const maxYAMLNodes = 1_000_000
+
+// yamlConv converts one YAML document.
+//
+// active holds the nodes on the current path, so an alias that reaches an
+// ancestor is reported as the cycle SPEC §2 requires. nodes is the expansion
+// budget: it counts the nodes actually produced — each scalar value, sequence
+// element and mapping entry — as they are built, so an alias bomb (a layered
+// anchor graph whose expansion is exponential in the source size) is rejected
+// after a bounded amount of work rather than materialized. This is a real
+// budget on output size, not a limit on depth or on the number of alias
+// references: heavy but honest reuse expands to few nodes and loads.
+type yamlConv struct {
+	path   string
+	active map[*yaml.Node]bool
+	nodes  int
+}
+
+// charge accounts for n nodes about to be produced and fails once the
+// document's expansion passes the budget.
+func (c *yamlConv) charge(n int, at *yaml.Node) error {
+	c.nodes += n
+	if c.nodes > maxYAMLNodes {
+		return errf(CodeParse,
+			"%s:%d: expanded YAML tree exceeds the %d-node limit (alias expansion is bounded)",
+			c.path, at.Line, maxYAMLNodes)
+	}
+	return nil
 }
 
 // yamlCoreTags is the tag set of the YAML 1.2 core schema. SPEC §2 makes any
@@ -201,49 +234,56 @@ var yamlCoreTags = map[string]bool{
 	"!!null": true, "!!map": true, "!!seq": true,
 }
 
-// yamlValue converts one node. active holds the nodes on the current path, so
-// an alias that reaches an ancestor is reported as the cycle SPEC §2 requires
-// rather than expanded until some depth limit trips.
-func yamlValue(n *yaml.Node, path string, active map[*yaml.Node]bool) (any, error) {
-	if active[n] {
-		return nil, errf(CodeParse, "%s:%d: cyclic YAML alias", path, n.Line)
+// value converts one node, charging the expansion budget for every node it
+// produces. An alias is expanded through Node.Alias, so the budget — not a
+// depth heuristic — is what stops an exponential anchor graph.
+func (c *yamlConv) value(n *yaml.Node) (any, error) {
+	if c.active[n] {
+		return nil, errf(CodeParse, "%s:%d: cyclic YAML alias", c.path, n.Line)
 	}
-	active[n] = true
-	defer delete(active, n)
+	c.active[n] = true
+	defer delete(c.active, n)
 
 	switch n.Kind {
 	case yaml.DocumentNode:
 		if len(n.Content) == 0 {
 			return nil, nil
 		}
-		return yamlValue(n.Content[0], path, active)
+		return c.value(n.Content[0])
 	case yaml.AliasNode:
 		// SPEC §2: anchors and aliases are resolved at parse time and produce
-		// plain values.
+		// plain values. The alias itself is not a node of the expanded tree —
+		// what it expands to is, and that is charged below.
 		if n.Alias == nil {
-			return nil, errf(CodeParse, "%s: unresolved alias %q", path, n.Value)
+			return nil, errf(CodeParse, "%s: unresolved alias %q", c.path, n.Value)
 		}
-		return yamlValue(n.Alias, path, active)
+		return c.value(n.Alias)
 	case yaml.MappingNode:
-		if err := checkYAMLTag(n, "!!map", path); err != nil {
+		if err := checkYAMLTag(n, "!!map", c.path); err != nil {
 			return nil, err
 		}
 		obj := make(map[string]any, len(n.Content)/2)
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			keyNode, valNode := n.Content[i], n.Content[i+1]
-			key, err := yamlValue(keyNode, path, active)
+			if err := c.charge(1, keyNode); err != nil { // one mapping entry
+				return nil, err
+			}
+			key, err := c.value(keyNode)
 			if err != nil {
 				return nil, err
 			}
 			ks, ok := key.(string)
 			if !ok {
 				// The tree is JSON-equivalent (SPEC §2): object keys are strings.
-				return nil, errf(CodeParse, "%s:%d: non-string mapping key", path, keyNode.Line)
+				return nil, errf(CodeParse, "%s:%d: non-string mapping key", c.path, keyNode.Line)
 			}
+			// SPEC §2: mapping keys are not counted — refund the scalar
+			// charge value() just took for the key.
+			c.nodes--
 			if _, dup := obj[ks]; dup {
-				return nil, errf(CodeParse, "%s:%d: duplicate key %q in mapping", path, keyNode.Line, ks)
+				return nil, errf(CodeParse, "%s:%d: duplicate key %q in mapping", c.path, keyNode.Line, ks)
 			}
-			v, err := yamlValue(valNode, path, active)
+			v, err := c.value(valNode)
 			if err != nil {
 				return nil, err
 			}
@@ -251,12 +291,15 @@ func yamlValue(n *yaml.Node, path string, active map[*yaml.Node]bool) (any, erro
 		}
 		return obj, nil
 	case yaml.SequenceNode:
-		if err := checkYAMLTag(n, "!!seq", path); err != nil {
+		if err := checkYAMLTag(n, "!!seq", c.path); err != nil {
+			return nil, err
+		}
+		if err := c.charge(len(n.Content), n); err != nil { // one per element
 			return nil, err
 		}
 		arr := make([]any, 0, len(n.Content))
-		for _, c := range n.Content {
-			v, err := yamlValue(c, path, active)
+		for _, elem := range n.Content {
+			v, err := c.value(elem)
 			if err != nil {
 				return nil, err
 			}
@@ -264,9 +307,12 @@ func yamlValue(n *yaml.Node, path string, active map[*yaml.Node]bool) (any, erro
 		}
 		return arr, nil
 	case yaml.ScalarNode:
-		return yamlScalar(n, path)
+		if err := c.charge(1, n); err != nil { // one scalar value
+			return nil, err
+		}
+		return yamlScalar(n, c.path)
 	default:
-		return nil, errf(CodeParse, "%s:%d: unsupported YAML node", path, n.Line)
+		return nil, errf(CodeParse, "%s:%d: unsupported YAML node", c.path, n.Line)
 	}
 }
 

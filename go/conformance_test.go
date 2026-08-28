@@ -190,6 +190,30 @@ func render(v any) string {
 	return fmt.Sprintf("%v", v)
 }
 
+// TestLoadMissingDirectory covers the one rule that cannot be fixtured: git
+// cannot carry a case whose config directory is absent, so SPEC §3's "a config
+// directory that does not exist or cannot be read is E_NO_ENTRYPOINT" lives
+// here.
+func TestLoadMissingDirectory(t *testing.T) {
+	for _, dir := range []string{
+		filepath.Join(t.TempDir(), "no-such-config"),                     // missing
+		filepath.Join(t.TempDir(), "no-such-parent", "no-such-config"),   // missing parent
+		filepath.Join(casesDir, "01-basic", "config", "entrypoint.json"), // a file, not a directory
+	} {
+		_, err := Load(dir)
+		if err == nil {
+			t.Fatalf("Load(%q): expected %s, got no error", dir, CodeNoEntrypoint)
+		}
+		var ecErr *Error
+		if !errors.As(err, &ecErr) {
+			t.Fatalf("Load(%q): expected *Error, got %T: %v", dir, err, err)
+		}
+		if ecErr.Code() != CodeNoEntrypoint {
+			t.Fatalf("Load(%q): expected %s, got %s (%v)", dir, CodeNoEntrypoint, ecErr.Code(), err)
+		}
+	}
+}
+
 // TestLoadUsesProcessEnvironment covers the one thing the injected-environment
 // harness cannot: that the public Load reads the real process environment and
 // that it overrides a *.env definition (SPEC §4).
@@ -205,5 +229,28 @@ func TestLoadUsesProcessEnvironment(t *testing.T) {
 	}
 	if tree["host"] != "prod.example.com" {
 		t.Fatalf("process env did not override app.env: %#v", tree["host"])
+	}
+}
+
+// TestYAMLBudgetKeysAreFree pins SPEC §2's "mapping keys are not counted":
+// a flat scalar mapping of N entries counts exactly 2N nodes (entry slot +
+// scalar value), so 500,000 entries sit exactly at the 1,000,000 budget and
+// must load, while 500,001 must be E_PARSE. An implementation that charges
+// keys counts 3N and wrongly rejects the first document at ~333k entries.
+func TestYAMLBudgetKeysAreFree(t *testing.T) {
+	build := func(entries int) string {
+		var b strings.Builder
+		for i := 0; i < entries; i++ {
+			fmt.Fprintf(&b, "k%d: %d\n", i, i)
+		}
+		return b.String()
+	}
+	if _, err := parseYAML("at-budget.yaml", []byte(build(500000))); err != nil {
+		t.Fatalf("500k-entry mapping (exactly 1,000,000 nodes) must load, got %v", err)
+	}
+	_, err := parseYAML("over-budget.yaml", []byte(build(500001)))
+	var e *Error
+	if err == nil || !errors.As(err, &e) || e.Code() != CodeParse {
+		t.Fatalf("500,001-entry mapping must be E_PARSE, got %v", err)
 	}
 }
