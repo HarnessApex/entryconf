@@ -69,6 +69,13 @@ silent".
   (`8080` equals `8080.0`).
 - Every normative MUST in the spec should have at least one fixture, and every
   error code at least one failure case.
+- Some rules cannot be fixtured at all: git stores neither a missing directory
+  nor file permissions, so "the config directory does not exist"
+  (`E_NO_ENTRYPOINT`), an unreadable entrypoint or `*.env` file (`E_PARSE`),
+  and an unreadable `@file:` target (`E_INCLUDE`) have no case form. Each
+  implementation covers those with unit tests beside its fixture harness, and
+  a new implementation is expected to do the same — those tests are the only
+  thing pinning the behavior.
 
 ## Running the suites
 
@@ -97,8 +104,12 @@ python3 tools/crosscheck/crosscheck.py            # whole suite
 python3 tools/crosscheck/crosscheck.py -case 06-include -v
 ```
 
-Dump one config directory with a single implementation (stdout: the tree as
-JSON, exit 0; stderr: the bare `E_*` code, exit 1):
+Dump one config directory with a single implementation. Every dump CLI shares
+one exit convention, so the crosscheck can tell a verdict from a broken tool:
+**0** the tree as JSON on stdout; **1** a load failure, with the bare `E_*`
+code as the first line of stderr and nothing on stdout; **2** anything else (a
+wrong command line, an internal fault), printing no `E_*` code at all. An
+`E_*` code therefore always means the config was rejected.
 
 ```sh
 cd go     && go run ./cmd/entryconf dump <dir>
@@ -116,7 +127,8 @@ crosscheck, and a packaging dry run on every push and pull request.
   tree as the language's natural map type (SPEC §9), plus an error type
   exposing the `E_*` code. Keep the surface minimal.
 - The test suite must be a harness that walks `../testdata/cases/` — never
-  hand-written per-case tests.
+  hand-written per-case tests. Add unit tests only for what a fixture cannot
+  express (see *Fixture conventions*) and for the dump CLI's exit convention.
 - Use stock parsers per SPEC §2: YAML 1.2 core schema, TOML datetimes rendered
   as RFC 3339-style strings.
 - Add the implementation to `tools/crosscheck` and to CI.

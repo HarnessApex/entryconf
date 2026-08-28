@@ -51,7 +51,7 @@ conformant iff it passes every case. Implementations are intended to be thin
 
 ## Status
 
-`v0.1.0` — spec and conformance suite are in place, and all four
+`v0.2.0` — spec and conformance suite are in place, and all four
 implementations (Go, Python, TypeScript, Rust) pass every case in
 [testdata/cases/](testdata/cases/).
 
