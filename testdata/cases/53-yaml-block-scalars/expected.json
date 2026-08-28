@@ -1,0 +1,18 @@
+{
+  "literal_clip": "line one\nline two\n",
+  "literal_blank_inside": "para one\n\npara two\n",
+  "literal_clip_trailing_blanks": "only line\n",
+
+  "literal_strip": "first\nsecond",
+  "literal_strip_trailing_blanks": "only line",
+
+  "folded_clip": "folded one folded two\nsecond paragraph\n",
+  "folded_strip": "a b",
+
+  "literal_with_variable": "host is db.local\nport is 5432\n",
+
+  "port_typed": 5432,
+  "port_untyped": "5432\n",
+
+  "dollar_escape": "price is $5"
+}

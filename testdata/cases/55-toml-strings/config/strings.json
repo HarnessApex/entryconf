@@ -1,0 +1,4 @@
+{
+  "plain": "included from TOML",
+  "json_escapes": "tab[\t] backslash[\\]"
+}

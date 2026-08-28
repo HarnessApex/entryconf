@@ -1,0 +1,14 @@
+# Level two: a TOML file included from a YAML entrypoint.
+
+level = "mid"
+
+# Same variables as the entrypoint, even though this file is a different format
+# in a different directory and has no *.env file of its own (SPEC §4).
+stage = "$EC_STAGE"
+
+# Whole-value typing (SPEC §6) applies inside an included file too.
+port = "$EC_PORT"
+
+# Level three. The path is relative to THIS file's directory (sub/), so it is
+# "leaf.json" and not "sub/leaf.json" (SPEC §5).
+leaf = "@file:leaf.json"

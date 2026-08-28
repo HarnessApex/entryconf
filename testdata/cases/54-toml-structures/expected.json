@@ -1,0 +1,40 @@
+{
+  "title": "structures",
+  "enabled": true,
+  "disabled": false,
+
+  "negative_int": -17,
+  "negative_float": -0.25,
+
+  "big_readable": 1000000,
+
+  "hex": 255,
+  "octal": 15,
+  "binary": 5,
+
+  "exp_float": 500.0,
+  "small_exp_float": 0.0015,
+
+  "plain_array": [1, 2, 3],
+  "string_array": ["a", "b"],
+  "array_of_arrays": [[1, 2], [3, 4], []],
+
+  "inline": { "host": "localhost", "port": 8080, "opts": { "tls": true } },
+
+  "points": [{ "x": 1, "y": 2 }, { "x": 3, "y": 4 }],
+
+  "dotted": { "key": { "here": "dotted" } },
+
+  "a": {
+    "name": "a",
+    "b": {
+      "name": "a.b",
+      "c": { "name": "a.b.c", "depth": 3 }
+    }
+  },
+
+  "servers": [
+    { "name": "alpha", "port": 8001 },
+    { "name": "beta", "port": 8002 }
+  ]
+}

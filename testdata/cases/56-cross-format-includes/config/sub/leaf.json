@@ -1,0 +1,6 @@
+{
+  "level": "leaf",
+  "stage": "$EC_STAGE",
+  "stage_note": "stage is $EC_STAGE",
+  "fallback": "${EC_UNSET_STAGE:-fallback}"
+}

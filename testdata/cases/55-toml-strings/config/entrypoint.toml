@@ -1,0 +1,44 @@
+# TOML 1.0 string forms. Basic strings process escapes, literal strings do not,
+# and entryconf's own handling (SPEC §5 includes, SPEC §6 interpolation) runs
+# afterwards on the parsed string, indifferent to which form produced it.
+
+# Basic-string escapes: \t, \n, \", \\ and \uXXXX.
+escapes = "tab[\t] newline[\n] quote[\"] backslash[\\] unicode[\u0041]"
+
+# A literal string keeps every backslash verbatim. The path below is chosen so
+# that every segment starts with a letter that *would* be an escape in a basic
+# string (\l, \r, \n, \t): here they are all just two characters each.
+windows_path = 'D:\logs\raw\new\temp.txt'
+regex = '<\i\c*\s*>'
+
+# A multiline basic string: the newline immediately after the opening delimiter
+# is trimmed, the one before the closing delimiter is kept.
+multiline_basic = """
+line one
+line two
+"""
+
+# A line-ending backslash trims that line break together with all leading
+# whitespace on the next line, so this value is a single line. The space before
+# each backslash is ordinary content and survives.
+continuation = """
+The quick brown \
+    fox jumps over \
+    the lazy dog."""
+
+# A multiline literal string: no escape processing, first newline trimmed.
+multiline_literal = '''
+first \n stays literal
+second line
+'''
+
+# The string is exactly one reference, so SPEC §6 whole-value typing turns the
+# substituted "8080" into a number...
+port = "$EC_PORT"
+
+# ...and the quoting form is irrelevant to that: SPEC §6 scans every string
+# value in the tree, so a TOML literal string is interpolated just the same.
+port_from_literal = '$EC_PORT'
+
+# SPEC §5 includes are a property of the string value, so they work from TOML.
+strings_include = "@file:strings.json"

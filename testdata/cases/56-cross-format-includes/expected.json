@@ -1,0 +1,22 @@
+{
+  "stage": "prod",
+
+  "mid": {
+    "level": "mid",
+    "stage": "prod",
+    "port": 8080,
+    "leaf": {
+      "level": "leaf",
+      "stage": "prod",
+      "stage_note": "stage is prod",
+      "fallback": "fallback"
+    }
+  },
+
+  "leaf_direct": {
+    "level": "leaf",
+    "stage": "prod",
+    "stage_note": "stage is prod",
+    "fallback": "fallback"
+  }
+}

@@ -1,0 +1,65 @@
+# YAML 1.2 block scalars. SPEC §2 defers the text to YAML itself; SPEC §6 then
+# scans the resulting string like any other string value in the tree, so
+# interpolation and "$$" work inside block-scalar text too.
+#
+# Chomping, per YAML 1.2 §8.1.1.2:
+#   clip (no indicator) - trailing line breaks collapse to exactly one;
+#   strip ("-")         - all trailing line breaks are dropped.
+
+# Literal: every line break inside the block is kept.
+literal_clip: |
+  line one
+  line two
+
+# A blank line inside a literal block is kept as a line break.
+literal_blank_inside: |
+  para one
+
+  para two
+
+# Clip keeps exactly one trailing break however many are authored.
+literal_clip_trailing_blanks: |
+  only line
+
+
+# Strip drops the final break.
+literal_strip: |-
+  first
+  second
+
+# Strip drops all of them.
+literal_strip_trailing_blanks: |-
+  only line
+
+
+# Folded: a single break between two non-empty lines folds to one space; a
+# break followed by n blank lines yields n breaks (YAML 1.2 §6.5).
+folded_clip: >
+  folded one
+  folded two
+
+  second paragraph
+
+folded_strip: >-
+  a
+  b
+
+# SPEC §6 interpolation over a string a block scalar produced.
+literal_with_variable: |
+  host is $EC_HOST
+  port is ${EC_PORT}
+
+# Whole-value typing (SPEC §6) requires the string to consist of exactly one
+# reference and nothing else. Strip chomping leaves exactly that, so the value
+# becomes a number...
+port_typed: |-
+  ${EC_PORT}
+
+# ...while clip chomping leaves a trailing line break, which makes the
+# reference embedded in a longer string: the result stays a string.
+port_untyped: |
+  ${EC_PORT}
+
+# "$$" is a literal "$".
+dollar_escape: |-
+  price is $$5

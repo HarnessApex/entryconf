@@ -1,0 +1,74 @@
+# The everyday structural surface of YAML, plus the two places where the
+# YAML 1.2 core schema mandated by SPEC §2 differs from what a YAML 1.1 habit
+# expects: quoted scalars and the "<<" key.
+#
+# SPEC §2: "Anchors and aliases are resolved at parse time and produce plain
+# values." The tree is JSON-equivalent, so it carries no sharing: an anchored
+# node referenced twice is simply duplicated at both sites.
+
+defaults: &defaults
+  retries: 3
+  timeout: 30
+  labels: [a, b]
+
+region: &region us-east-1
+
+# The anchored mapping, referenced twice.
+service_a: *defaults
+service_b: *defaults
+
+# The anchored scalar, referenced twice.
+primary_region: *region
+failover_region: *region
+
+# The core schema has no merge type, so "<<" carries no special meaning: it is
+# an ordinary string key whose value is the aliased mapping. Nothing is merged
+# into the surrounding mapping, and the sibling "retries" below overrides
+# nothing — both keys survive.
+merge_key_is_ordinary:
+  <<: *defaults
+  retries: 10
+
+flow:
+  map: {a: 1, b: two}
+  seq: [1, 2]
+  mixed: [{a: 1}, [1, 2], {b: [3, 4]}]
+  empty_map: {}
+  empty_seq: []
+
+# Block nesting: mappings four levels down, with a sequence of mappings at the
+# bottom and sequences inside those.
+deep:
+  level1:
+    level2:
+      level3:
+        leaf: bottom
+        items:
+          - name: first
+            attrs:
+              enabled: true
+              ports: [80, 443]
+          - name: second
+            attrs:
+              enabled: false
+              ports: []
+
+# A quoted scalar is a string whatever it looks like: quoting takes it out of
+# plain-scalar resolution altogether, so none of these are booleans, nulls or
+# numbers.
+quoted:
+  bool_like: "true"
+  bool_like_single: 'false'
+  null_like: "null"
+  tilde_like: "~"
+  int_like: "010"
+  float_like: "3.5"
+
+# The same texts unquoted, for contrast. (A plain, unquoted 010 is deliberately
+# absent: leading-zero integers are where stock YAML 1.1 parsers diverge from
+# the core schema, which is a separate concern from quoting.)
+plain:
+  bool: true
+  null_word: null
+  null_tilde: ~
+  float: 3.5

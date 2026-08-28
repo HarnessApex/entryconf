@@ -1,0 +1,21 @@
+# A three-level include chain that changes format at every hop:
+#   entrypoint.yaml -> sub/mid.toml -> leaf.json
+#
+# Two things are pinned. First, SPEC §4: there is a single global variable
+# namespace for the entire include tree, so the same $EC_ references resolve
+# identically at all three levels, whatever the format of the file they sit in
+# and wherever that file lives. Only this directory's own *.env files
+# participate.
+#
+# Second, SPEC §5: the same file may be included more than once. leaf.json is
+# reached twice - once through mid.toml, once straight from here - which is a
+# diamond, not a cycle, because no file transitively includes itself.
+
+stage: $EC_STAGE
+mid: "@file:sub/mid.toml"
+
+# The same leaf, included a second time directly. Note the path: from here the
+# leaf is "sub/leaf.json", while mid.toml (which lives in sub/) reaches it as
+# plain "leaf.json" - SPEC §5 resolves a path relative to the directory of the
+# *referencing* file.
+leaf_direct: "@file:sub/leaf.json"

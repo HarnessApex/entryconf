@@ -1,0 +1,18 @@
+{
+  "escapes": "tab[\t] newline[\n] quote[\"] backslash[\\] unicode[A]",
+
+  "windows_path": "D:\\logs\\raw\\new\\temp.txt",
+  "regex": "<\\i\\c*\\s*>",
+
+  "multiline_basic": "line one\nline two\n",
+  "continuation": "The quick brown fox jumps over the lazy dog.",
+  "multiline_literal": "first \\n stays literal\nsecond line\n",
+
+  "port": 8080,
+  "port_from_literal": 8080,
+
+  "strings_include": {
+    "plain": "included from TOML",
+    "json_escapes": "tab[\t] backslash[\\]"
+  }
+}

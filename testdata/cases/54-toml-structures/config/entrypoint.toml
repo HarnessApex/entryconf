@@ -1,0 +1,59 @@
+# The everyday structural surface of TOML 1.0, which SPEC §2 requires the input
+# to be. Nothing here is entryconf-specific: the point is that a conformant
+# implementation's stock parser lands every one of these shapes in the
+# JSON-equivalent tree with the right type.
+#
+# Integers stay well below 2^53 (SPEC §2): magnitudes above that are outside
+# the portable guarantee and never appear in fixtures.
+
+title = "structures"
+enabled = true
+disabled = false
+
+negative_int = -17
+negative_float = -0.25
+
+# Underscores are separators, not part of the value.
+big_readable = 1_000_000
+
+# Prefixed integers: hexadecimal, octal, binary.
+hex = 0xFF
+octal = 0o17
+binary = 0b101
+
+# Exponents make a value a float even with no fractional part.
+exp_float = 5e2
+small_exp_float = 1.5e-3
+
+plain_array = [1, 2, 3]
+string_array = ["a", "b"]
+array_of_arrays = [[1, 2], [3, 4], []]
+
+# An inline table, including a dotted key inside it.
+inline = { host = "localhost", port = 8080, opts.tls = true }
+
+# An array of inline tables.
+points = [{ x = 1, y = 2 }, { x = 3, y = 4 }]
+
+# Dotted keys in the root table build nested objects.
+dotted.key.here = "dotted"
+
+# Nested tables, three headers deep.
+[a]
+name = "a"
+
+[a.b]
+name = "a.b"
+
+[a.b.c]
+name = "a.b.c"
+depth = 3
+
+# An array of tables: two [[servers]] headers make a two-element array.
+[[servers]]
+name = "alpha"
+port = 8001
+
+[[servers]]
+name = "beta"
+port = 8002
