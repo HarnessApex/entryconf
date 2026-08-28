@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "entryconf"
-version = "0.1.0"
-description = "Python implementation of the entryconf spec 0.1.0"
+version = "0.2.0"
+description = "Python implementation of the entryconf spec 0.2.0"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["PyYAML>=6.0"]

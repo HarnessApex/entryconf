@@ -7,6 +7,7 @@ data model:
   object with string keys),
 * YAML uses the **YAML 1.2 core schema** (PyYAML's own resolvers implement
   YAML 1.1, so the resolvers and constructors are rebuilt here),
+* YAML alias expansion is bounded by a node budget (:data:`MAX_EXPANDED_NODES`),
 * TOML datetimes become their RFC 3339 string form,
 * a duplicate key within one document is ``E_PARSE``.
 """
@@ -27,6 +28,11 @@ from ._errors import E_PARSE, EntryconfError
 
 #: Extensions that select a parser (SPEC §3 and §5).
 SUFFIXES = (".json", ".yaml", ".yml", ".toml")
+
+#: SPEC §2: a YAML document whose fully expanded tree would exceed this many
+#: nodes is ``E_PARSE``. Each scalar value, sequence element and mapping entry
+#: counts as one node.
+MAX_EXPANDED_NODES = 1_000_000
 
 
 def _parse_error(path: Path, detail: object) -> EntryconfError:
@@ -68,6 +74,11 @@ def parse_json(text: str, path: Path) -> Any:
 
 _CORE_BOOL = re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$")
 _CORE_NULL = re.compile(r"^(?:~|null|Null|NULL|)$")
+# The core schema's three integer forms. The decimal alternative is plain
+# `[0-9]+`, so a leading zero is just a leading zero (SPEC §2): unquoted `010`
+# is decimal 10, and `0o10` is the only octal spelling. YAML 1.1 — and PyYAML's
+# stock resolver — read `010` as octal 8 instead, which is exactly why the
+# resolvers here are rebuilt from `BaseResolver`.
 _CORE_INT = re.compile(r"^(?:[-+]?[0-9]+|0o[0-7]+|0x[0-9a-fA-F]+)$")
 _CORE_FLOAT = re.compile(
     r"""^(?:
@@ -105,6 +116,15 @@ _CoreResolver.add_implicit_resolver(
 class _CoreConstructor(yaml.constructor.SafeConstructor):
     """Constructors for exactly the core schema's tags; anything else fails."""
 
+    def __init__(self) -> None:
+        super().__init__()
+        #: Expanded node count per composed node, filled in as construction
+        #: proceeds. An alias composes to the *same* node object, so a shared
+        #: node is constructed once but its expanded size is charged at every
+        #: reference site — that is what makes the budget below a bound on the
+        #: expanded tree rather than on the source.
+        self.expanded_sizes: dict[yaml.Node, int] = {}
+
 
 _CoreConstructor.yaml_constructors = {}
 _CoreConstructor.yaml_multi_constructors = {}
@@ -115,9 +135,50 @@ def _bad_yaml(node: yaml.Node, detail: str) -> EntryconfError:
     return EntryconfError(E_PARSE, f"line {mark.line + 1}, column {mark.column + 1}: {detail}")
 
 
+# --------------------------------------------------------------------------
+# The expansion budget (SPEC §2)
+#
+# Aliases turn the composed document into a DAG: `[*big, *big, *big]` is three
+# edges to one node, so the *source* says nothing about how large the expanded
+# tree is. Sizes are therefore accumulated bottom-up during construction —
+# a scalar is 1; a sequence is its element count plus the expanded size of each
+# element; a mapping is its entry count plus the expanded size of each value
+# (keys are not counted; SPEC §2 counts scalar values, sequence elements and
+# mapping entries) — and every partial sum is checked against the budget.
+#
+# Bottom-up accumulation over the DAG is what makes rejection instant: a nine
+# deep, nine wide alias bomb expanding to ~48M nodes is settled in a few dozen
+# steps, because the size of a shared node is computed once and then reused,
+# never materialized. Checking each partial sum (rather than only a finished
+# container) also stops a single wide sequence of huge aliases early, and keeps
+# the running totals small.
+# --------------------------------------------------------------------------
+
+
+def _charge(loader: Any, node: yaml.Node, size: int) -> None:
+    """Record ``node``'s expanded size, rejecting an over-budget document."""
+    if size > MAX_EXPANDED_NODES:
+        raise _bad_yaml(
+            node,
+            f"expanded document exceeds the {MAX_EXPANDED_NODES}-node budget "
+            f"(alias expansion is bounded)",
+        )
+    loader.expanded_sizes[node] = size
+
+
+def _expanded_size(loader: Any, node: yaml.Node) -> int:
+    """The expanded size of an already-constructed node.
+
+    Every constructor in this module records one, so a missing entry would be
+    an internal bug rather than bad input; 1 is the conservative fallback.
+    """
+    return loader.expanded_sizes.get(node, 1)
+
+
 def _scalar(loader: Any, node: yaml.Node) -> str:
     if not isinstance(node, yaml.ScalarNode):
         raise _bad_yaml(node, f"expected a scalar for tag {node.tag}")
+    _charge(loader, node, 1)
     return loader.construct_scalar(node)
 
 
@@ -167,13 +228,22 @@ def _construct_str(loader: Any, node: yaml.Node) -> str:
 def _construct_seq(loader: Any, node: yaml.Node) -> list[Any]:
     if not isinstance(node, yaml.SequenceNode):
         raise _bad_yaml(node, "expected a sequence")
-    return [loader.construct_object(child, deep=True) for child in node.value]
+    items: list[Any] = []
+    size = len(node.value)  # one node per element ...
+    _charge(loader, node, size)
+    for child in node.value:
+        items.append(loader.construct_object(child, deep=True))
+        size += _expanded_size(loader, child)  # ... plus what it expands to
+        _charge(loader, node, size)
+    return items
 
 
 def _construct_map(loader: Any, node: yaml.Node) -> dict[str, Any]:
     if not isinstance(node, yaml.MappingNode):
         raise _bad_yaml(node, "expected a mapping")
     result: dict[str, Any] = {}
+    size = len(node.value)  # one node per entry ...
+    _charge(loader, node, size)
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node, deep=True)
         if not isinstance(key, str):
@@ -181,6 +251,8 @@ def _construct_map(loader: Any, node: yaml.Node) -> dict[str, Any]:
         if key in result:
             raise _bad_yaml(key_node, f"duplicate key {key!r}")
         result[key] = loader.construct_object(value_node, deep=True)
+        size += _expanded_size(loader, value_node)  # ... plus the value's size
+        _charge(loader, node, size)
     return result
 
 

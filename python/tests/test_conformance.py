@@ -3,6 +3,11 @@
 One parametrized test walks the shared fixture suite in
 ``../../testdata/cases`` — there are deliberately no hand-written per-case
 tests, which could drift from the fixtures.
+
+The unit tests at the bottom cover only what a fixture *cannot* express: a
+config directory that does not exist (git cannot store a missing directory),
+the dump CLI's exit-code convention, and the boundary of the YAML expansion
+budget.
 """
 
 from __future__ import annotations
@@ -14,12 +19,14 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Iterator
 
 import pytest
 
 from entryconf import EntryconfError, load
+from entryconf._parsers import MAX_EXPANDED_NODES, parse_yaml
 
 CASES_DIR = Path(__file__).resolve().parents[2] / "testdata" / "cases"
 CASES = sorted(path for path in CASES_DIR.iterdir() if path.is_dir())
@@ -135,8 +142,31 @@ def test_conformance(case: Path) -> None:
     assert _mismatch(tree, expected) is None, _mismatch(tree, expected)
 
 
+# --------------------------------------------------------------------------
+# Unit tests for what a fixture cannot express.
+# --------------------------------------------------------------------------
+
+
+def test_missing_config_dir_is_no_entrypoint(tmp_path: Path) -> None:
+    """SPEC §3: a directory that does not exist is `E_NO_ENTRYPOINT`.
+
+    Unfixturable: git cannot store a missing directory, so the suite can never
+    cover this and it has to be asserted here.
+    """
+    with pytest.raises(EntryconfError) as excinfo:
+        load(tmp_path / "does-not-exist")
+    assert excinfo.value.code == "E_NO_ENTRYPOINT"
+
+    # Same code for a path that exists but is not a readable directory.
+    not_a_dir = tmp_path / "entrypoint.json"
+    not_a_dir.write_text("{}", encoding="utf-8")
+    with pytest.raises(EntryconfError) as excinfo:
+        load(not_a_dir)
+    assert excinfo.value.code == "E_NO_ENTRYPOINT"
+
+
 def test_dump_cli(tmp_path: Path) -> None:
-    """`python -m entryconf <dir>`: JSON on stdout, or the E_* code on stderr."""
+    """The dump-CLI convention: 0 with JSON, 1 with a bare code, 2 otherwise."""
     config = tmp_path / "config"
     config.mkdir()
     (config / "entrypoint.json").write_text('{"port": 8080}', encoding="utf-8")
@@ -149,11 +179,152 @@ def test_dump_cli(tmp_path: Path) -> None:
     assert ok.returncode == 0, ok.stderr
     assert json.loads(ok.stdout) == {"port": 8080}
 
+    # A load failure: exit 1, the bare E_* code as the first stderr line.
     bad = subprocess.run(
         [sys.executable, "-m", "entryconf", str(tmp_path / "empty")],
         capture_output=True,
         text=True,
     )
     assert bad.returncode == 1
+    assert bad.stderr.splitlines()[0] == "E_NO_ENTRYPOINT"
     assert bad.stderr.strip() == "E_NO_ENTRYPOINT"
     assert bad.stdout == ""
+
+    # Any other fault: exit 2, and no E_* code anywhere on stderr, so it can
+    # never be read as a conformance verdict.
+    for argv in ([], [str(config), str(config)]):
+        usage = subprocess.run(
+            [sys.executable, "-m", "entryconf", *argv],
+            capture_output=True,
+            text=True,
+        )
+        assert usage.returncode == 2, usage.stderr
+        assert "E_" not in usage.stderr
+        assert usage.stdout == ""
+
+
+def test_dump_cli_dash_led_argument_is_a_usage_fault(tmp_path: Path) -> None:
+    """A dash-led argument is a mis-invocation, never a config directory.
+
+    Handing `-x` or `--` to `load` would report a mistyped flag as
+    `E_NO_ENTRYPOINT`: a broken invocation dressed as a conformance verdict.
+    The rule is the dump-CLI convention's own — exit 2, no `E_*` on stderr.
+    """
+    for argv in (["--"], ["-x"], ["--nope"], ["-"]):
+        proc = subprocess.run(
+            [sys.executable, "-m", "entryconf", *argv],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+        assert proc.returncode == 2, (argv, proc.stderr)
+        assert "E_" not in proc.stderr, (argv, proc.stderr)
+        assert proc.stdout == ""
+
+
+def test_dump_cli_help_and_version_exit_zero(tmp_path: Path) -> None:
+    """`--help`/`-h`/`--version` print on stdout and exit 0, naming no code."""
+    for argv in (["--help"], ["-h"], ["--version"]):
+        proc = subprocess.run(
+            [sys.executable, "-m", "entryconf", *argv],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+        assert proc.returncode == 0, (argv, proc.stderr)
+        assert proc.stdout.strip() != ""
+        assert "E_" not in proc.stdout + proc.stderr, (argv, proc.stdout)
+
+
+def test_dump_cli_dot_slash_addresses_a_dash_led_directory(tmp_path: Path) -> None:
+    """The usage line's escape hatch has to actually work.
+
+    Usage promises `./-name` reaches a directory whose name starts with `-`;
+    that is only true if the dash test looks at the argument as given, so a
+    dotted path stays a path. Asserting it keeps the documented workaround
+    from rotting into a lie.
+    """
+    weird = tmp_path / "-weird-dir"
+    weird.mkdir()
+    (weird / "entrypoint.json").write_text('{"ok": true}', encoding="utf-8")
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "entryconf", "./-weird-dir"],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout) == {"ok": True}
+
+
+def test_dump_cli_internal_error_exits_two(tmp_path: Path) -> None:
+    """An internal fault is exit 2 with no `E_*` code, even a code-shaped one.
+
+    Injecting a non-`EntryconfError` is the only way to reach that branch; the
+    planted `E_PARSE` in the message proves the scrubbing, so exit 2 can never
+    be mistaken for a load verdict.
+    """
+    script = (
+        "import entryconf.__main__ as m\n"
+        "def boom(_):\n"
+        "    raise RuntimeError('planted E_PARSE lookalike')\n"
+        "m.load = boom\n"
+        f"raise SystemExit(m.main([{str(tmp_path)!r}]))\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True
+    )
+    assert proc.returncode == 2
+    assert "E_" not in proc.stderr
+    assert proc.stdout == ""
+
+
+def test_dump_cli_alias_bomb_fails_fast() -> None:
+    """The alias bomb is a load failure, and the budget settles it instantly.
+
+    The point of a node budget (rather than a timeout) is that rejection costs
+    a few dozen steps, so a generous ceiling here still fails loudly if the
+    expansion is ever materialized instead of counted.
+    """
+    config = CASES_DIR / "57-yaml-alias-bomb" / "config"
+    started = time.monotonic()
+    proc = subprocess.run(
+        [sys.executable, "-m", "entryconf", str(config)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    elapsed = time.monotonic() - started
+    assert proc.returncode == 1
+    assert proc.stderr.splitlines()[0] == "E_PARSE"
+    assert proc.stdout == ""
+    assert elapsed < 10, f"the bomb took {elapsed:.1f}s — is the budget counted?"
+
+
+def test_yaml_expansion_budget_boundary() -> None:
+    """SPEC §2: the budget bounds the *expanded* tree, counted exactly.
+
+    Both documents are a few kilobytes of source and differ only in how many
+    times they alias the same 1000-element sequence, so nothing but the
+    expanded-node count can separate them. Sizes follow SPEC §2's counting
+    rule — a scalar is one node, a sequence is its elements plus their sizes, a
+    mapping its entries plus its values' sizes:
+
+        total = 2 top-level entries + 2k (the anchor) + m + 2km (the aliases)
+    """
+    def document(k: int, m: int) -> str:
+        base = "[" + ", ".join("x" for _ in range(k)) + "]"
+        return f"a: &a {base}\nb: [" + ", ".join("*a" for _ in range(m)) + "]\n"
+
+    k = 1000
+    under, over = 498, 500  # 998,500 and 1,002,502 expanded nodes
+    assert 2 + 2 * k + under + 2 * k * under <= MAX_EXPANDED_NODES
+    assert 2 + 2 * k + over + 2 * k * over > MAX_EXPANDED_NODES
+
+    tree = parse_yaml(document(k, under), Path("under.yaml"))
+    assert len(tree["b"]) == under and len(tree["b"][0]) == k
+
+    with pytest.raises(EntryconfError) as excinfo:
+        parse_yaml(document(k, over), Path("over.yaml"))
+    assert excinfo.value.code == "E_PARSE"
