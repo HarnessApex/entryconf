@@ -1,0 +1,79 @@
+# Builds release assets when a spec/v* tag is pushed and attaches them to a
+# GitHub release INSIDE THIS REPO. Nothing here publishes to any package
+# registry — while the repo is private, release assets are the only
+# distribution channel (npm cannot install a monorepo subdirectory from git,
+# so the tarball matters; Go and Rust are consumed from the repo by tag).
+name: release
+
+on:
+  push:
+    tags: ["spec/v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ts/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#spec/v}" >> "$GITHUB_ENV"
+
+      - name: Build python sdist + wheel
+        working-directory: python
+        run: |
+          pip install build
+          python -m build --outdir ../assets
+
+      - name: Build npm tarball
+        working-directory: ts
+        run: |
+          npm ci
+          npm pack --pack-destination ../assets
+          mv "../assets/entryconf-${VERSION}.tgz" "../assets/entryconf-npm-${VERSION}.tgz"
+
+      - name: Package crate
+        working-directory: rust
+        run: |
+          cargo package
+          cp "target/package/entryconf-${VERSION}.crate" ../assets/
+
+      - name: Build CLI matrix
+        working-directory: go
+        run: |
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            os=${target%/*}; arch=${target#*/}; ext=""
+            [ "$os" = windows ] && ext=".exe"
+            GOOS=$os GOARCH=$arch CGO_ENABLED=0 \
+              go build -trimpath -ldflags "-s -w" \
+              -o "../assets/entryconf-cli_${VERSION}_${os}_${arch}${ext}" ./cmd/entryconf
+          done
+
+      - name: Checksums
+        working-directory: assets
+        run: sha256sum * > SHA256SUMS
+
+      - name: Create release with assets
+        run: |
+          gh release create "$GITHUB_REF_NAME" assets/* \
+            --title "entryconf v${VERSION}" \
+            --generate-notes \
+            --verify-tag
