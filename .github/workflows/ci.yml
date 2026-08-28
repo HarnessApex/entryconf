@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-cases:
+    name: lint conformance cases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          # tools/lintcases is a stdlib-only module with no go.sum; without
+          # this, setup-go's default cache hunts for one in the repo root and
+          # logs "Dependencies file is not found".
+          cache: false
+      - name: Lint fixture suite
+        run: cd tools/lintcases && go run . -root ../..
+
+  go:
+    name: go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: go/go.sum
+      - name: Test
+        working-directory: go
+        run: go test ./...
+
+  python:
+    name: python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ./python pytest
+      - name: Test
+        working-directory: python
+        run: pytest
+
+  ts:
+    name: ts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ts/package-lock.json
+      - name: Install
+        working-directory: ts
+        run: npm ci
+      - name: Test
+        working-directory: ts
+        run: npm test
+
+  rust:
+    name: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test
+        working-directory: rust
+        run: cargo test
+
+  crosscheck:
+    name: cross-implementation diff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: go/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ts/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install python implementation
+        run: python -m pip install -e ./python
+      - name: Install ts dependencies
+        working-directory: ts
+        run: npm ci
+      - name: Diff every implementation against the fixtures and each other
+        run: python3 tools/crosscheck/crosscheck.py
+
+  publish-dryrun:
+    # Packaging rehearsal only: builds the distribution artifacts and throws
+    # them away. Nothing is uploaded to any registry, and there is deliberately
+    # no real publish/release job in this workflow.
+    name: packaging dry run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ts/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install python build frontend
+        continue-on-error: false
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+
+      - name: Build python sdist and wheel
+        continue-on-error: false
+        working-directory: python
+        run: python -m build
+
+      # `npm pack` runs the `prepack` script (clean + `tsc -p tsconfig.build.json`),
+      # so the devDependencies must be installed first — without this step the
+      # pack fails with "tsc: not found" on a cold checkout, since ts/dist is
+      # gitignored and typescript only exists in node_modules.
+      - name: Install ts dependencies
+        working-directory: ts
+        run: npm ci
+
+      - name: Pack ts package (dry run)
+        continue-on-error: false
+        working-directory: ts
+        run: npm pack --dry-run
+
+      # `cargo package` is used instead of `cargo publish --dry-run` deliberately:
+      # it does the same work (build the .crate, then compile it from the packaged
+      # sources) but stops before cargo's upload step, so this job cannot reach
+      # crates.io even by accident. `--allow-dirty` is needed because the earlier
+      # steps leave build output in the tree.
+      - name: Package rust crate (dry run)
+        continue-on-error: false
+        working-directory: rust
+        run: cargo package --allow-dirty
