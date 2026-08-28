@@ -1,0 +1,31 @@
+[package]
+name = "entryconf"
+version = "0.1.0"
+edition = "2021"
+description = "Rust implementation of the entryconf config-directory convention (spec 0.1.0)"
+license = "Apache-2.0"
+repository = "https://github.com/entryconf/entryconf"
+readme = "README.md"
+keywords = ["config", "configuration", "dotenv", "yaml", "toml"]
+categories = ["config", "parsing"]
+# The conformance suite reads ../testdata, which lives outside the crate and
+# does not ship. Excluding the harness keeps `cargo package`'s verify build
+# working from the unpacked tarball; run `cargo test` from the repo instead.
+exclude = ["tests/**", "target/**"]
+
+[dependencies]
+saphyr-parser = "0.0.12"
+serde = "1"
+serde_json = "1"
+toml = "1"
+
+[dev-dependencies]
+libtest-mimic = "0.8"
+
+[[bin]]
+name = "entryconf-dump"
+path = "src/bin/entryconf-dump.rs"
+
+[[test]]
+name = "conformance"
+harness = false
