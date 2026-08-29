@@ -29,9 +29,14 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: ts/package-lock.json
-      - uses: actions/setup-python@v5
+      # setup-uv instead of setup-python: setup-python only has interpreter
+      # builds for the distros in actions/python-versions, so it fails on
+      # non-Ubuntu self-hosted runners (this killed the first v0.2.0 release
+      # run). uv's interpreters are distro-agnostic.
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          activate-environment: true
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Version from tag
@@ -40,7 +45,7 @@ jobs:
       - name: Build python sdist + wheel
         working-directory: python
         run: |
-          pip install build
+          uv pip install build
           python -m build --outdir ../assets
 
       - name: Build npm tarball

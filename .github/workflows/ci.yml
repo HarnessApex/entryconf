@@ -45,13 +45,17 @@ jobs:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # setup-uv instead of setup-python: setup-python only has interpreter
+      # builds for the distros in actions/python-versions (Ubuntu, in
+      # practice), so it fails on any other self-hosted Linux runner
+      # ("version ... not found for cachyos rolling"). uv's interpreters are
+      # distro-agnostic python-build-standalone builds.
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
+          activate-environment: true
       - name: Install
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ./python pytest
+        run: uv pip install -e ./python pytest
       - name: Test
         working-directory: python
         run: pytest
@@ -92,9 +96,12 @@ jobs:
         with:
           go-version: stable
           cache-dependency-path: go/go.sum
-      - uses: actions/setup-python@v5
+      # setup-uv instead of setup-python: distro-agnostic interpreters, works
+      # on non-Ubuntu self-hosted runners (see the python job).
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          activate-environment: true
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -102,7 +109,7 @@ jobs:
           cache-dependency-path: ts/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - name: Install python implementation
-        run: python -m pip install -e ./python
+        run: uv pip install -e ./python
       - name: Install ts dependencies
         working-directory: ts
         run: npm ci
@@ -117,9 +124,12 @@ jobs:
     runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # setup-uv instead of setup-python: distro-agnostic interpreters, works
+      # on non-Ubuntu self-hosted runners (see the python job).
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          activate-environment: true
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -129,9 +139,7 @@ jobs:
 
       - name: Install python build frontend
         continue-on-error: false
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install build
+        run: uv pip install build
 
       - name: Build python sdist and wheel
         continue-on-error: false
