@@ -71,9 +71,11 @@ jobs:
         working-directory: assets
         run: sha256sum * > SHA256SUMS
 
+      # softprops/action-gh-release rather than the gh CLI: self-hosted
+      # runners don't ship gh (exit 127 on the first live run).
       - name: Create release with assets
-        run: |
-          gh release create "$GITHUB_REF_NAME" assets/* \
-            --title "entryconf v${VERSION}" \
-            --generate-notes \
-            --verify-tag
+        uses: softprops/action-gh-release@v2
+        with:
+          name: entryconf v${{ env.VERSION }}
+          generate_release_notes: true
+          files: assets/*
