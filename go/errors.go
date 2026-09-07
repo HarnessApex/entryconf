@@ -13,10 +13,19 @@ const (
 	CodeIncludeCycle        = "E_INCLUDE_CYCLE"
 	CodeMissingVar          = "E_MISSING_VAR"
 	CodeSubstitution        = "E_SUBSTITUTION"
+
+	// Editing codes (SPEC §10.9), added in 0.3.0.
+	CodeUnsupportedEdit = "E_UNSUPPORTED_EDIT"
+	CodeEdit            = "E_EDIT"
+	CodePath            = "E_PATH"
+	CodeStalePlan       = "E_STALE_PLAN"
+	CodeLocked          = "E_LOCKED"
+	CodeWrite           = "E_WRITE"
 )
 
-// Error is the only error type returned by Load. Use errors.As to recover it
-// and Code to branch on the normative error code:
+// Error is the only error type returned by Load, Open, and the editing
+// operations. Use errors.As to recover it and Code to branch on the normative
+// error code:
 //
 //	var ecErr *entryconf.Error
 //	if errors.As(err, &ecErr) && ecErr.Code() == entryconf.CodeMissingVar { ... }

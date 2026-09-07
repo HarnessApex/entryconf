@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"math"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -37,19 +36,42 @@ func parserFor(path string) (func(path string, data []byte) (any, error), bool) 
 // reported by the caller (which knows whether it is an entrypoint or an
 // include); an unparseable one — including one whose bytes are not valid
 // UTF-8 (SPEC §2) — is always E_PARSE.
-func parseDocument(path string) (any, error) {
+func (l *loader) parseDocument(path string) (any, error) {
 	parse, ok := parserFor(path)
 	if !ok {
 		return nil, errf(CodeInclude, "unsupported file extension: %q", path)
 	}
-	data, err := os.ReadFile(path)
+	data, err := l.src.readFile(path)
 	if err != nil {
 		return nil, err // classified by the caller
 	}
 	if err := checkUTF8(path, data); err != nil {
 		return nil, err
 	}
-	return parse(path, data)
+	doc, err := parse(path, data)
+	if err != nil {
+		return nil, err
+	}
+	if l.rec != nil {
+		l.rec.record(path, data, formatOf(path), doc)
+	}
+	return doc, nil
+}
+
+// formatOf names a document's format for SPEC §10.2 ("json", "yaml", "toml",
+// or "env"); the caller has already established the extension is supported.
+func formatOf(path string) string {
+	switch filepath.Ext(path) {
+	case ".json":
+		return "json"
+	case ".yaml", ".yml":
+		return "yaml"
+	case ".toml":
+		return "toml"
+	case ".env":
+		return "env"
+	}
+	return ""
 }
 
 // checkUTF8 enforces SPEC §2: file content anywhere that is not valid UTF-8 is

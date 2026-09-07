@@ -2,8 +2,10 @@
 // of *.env variable files, "@file:" includes and "$VAR" interpolation — into a
 // single tree.
 //
-// It implements the entryconf specification, version 0.2.0. See SPEC.md in the
-// repository root; the fixture suite in testdata/cases defines conformance.
+// It implements the entryconf specification, version 0.3.0. See SPEC.md in the
+// repository root; the fixture suite in testdata/cases defines conformance, and
+// testdata/editcases defines conformance of the editing surface (Open,
+// Snapshot.Inspect, Snapshot.Plan, Plan.Commit — SPEC §10).
 package entryconf
 
 import (
@@ -12,6 +14,8 @@ import (
 	"path/filepath"
 	"sort"
 )
+
+var _ = os.LookupEnv // the public Load reads the real process environment
 
 // entrypointNames are the only accepted entrypoint file names (SPEC §3).
 var entrypointNames = []string{
@@ -36,7 +40,8 @@ func Load(dir string) (map[string]any, error) {
 // SPEC §7 code, which is what the CLI's "first stderr line is the code"
 // contract rests on.
 func load(dir string, procEnv envSource) (map[string]any, error) {
-	tree, err := loadTree(dir, procEnv)
+	l := &loader{src: osSource{}, procEnv: procEnv}
+	tree, err := l.loadTree(dir)
 	if err != nil {
 		return nil, asError(err)
 	}
@@ -54,22 +59,26 @@ func asError(err error) *Error {
 	return wrapf(CodeParse, err, "load failed")
 }
 
-func loadTree(dir string, procEnv envSource) (map[string]any, error) {
+// loadTree runs the five steps of SPEC §1 against l.src. When l.rec is set,
+// every document read, every graft, and every variable lookup is recorded on
+// the way through — that is what Open (SPEC §10.2) and a plan's candidate
+// evaluation (SPEC §10.6) are built on; a plain Load records nothing.
+func (l *loader) loadTree(dir string) (map[string]any, error) {
 	// 1. Locate the entrypoint.
-	entrypoint, err := findEntrypoint(dir)
+	entrypoint, err := l.findEntrypoint(dir)
 	if err != nil {
 		return nil, err
 	}
 
 	// 2. Build the variable namespace.
-	fileVars, err := loadEnvFiles(dir)
+	fileVars, fileOrigin, err := l.loadEnvFiles(dir)
 	if err != nil {
 		return nil, err
 	}
-	l := &loader{vars: &vars{files: fileVars, proc: procEnv}}
+	l.vars = &vars{files: fileVars, origin: fileOrigin, proc: l.procEnv, used: map[string]bool{}}
 
 	// 3. Parse the entrypoint and resolve every include.
-	doc, err := parseDocument(entrypoint)
+	doc, err := l.parseDocument(entrypoint)
 	if err != nil {
 		var ecErr *Error
 		if errors.As(err, &ecErr) {
@@ -85,7 +94,10 @@ func loadTree(dir string, procEnv envSource) (map[string]any, error) {
 		return nil, errf(CodeParse,
 			"entrypoint %q must hold an object at the top level, not %s", entrypoint, kindOf(doc))
 	}
-	grafted, err := l.resolveIncludes(doc, filepath.Dir(entrypoint), []string{entrypoint})
+	if l.rec != nil {
+		l.rec.graft(entrypoint, Graft{Effective: "", Chain: []Reference{}})
+	}
+	grafted, err := l.resolveIncludes(doc, &walk{doc: entrypoint, dir: filepath.Dir(entrypoint), files: []string{entrypoint}, chain: []Reference{}})
 	if err != nil {
 		return nil, err
 	}
@@ -122,17 +134,21 @@ func kindOf(v any) string {
 	return "a number"
 }
 
-// loader carries the per-Load state: the variable namespace.
+// loader carries the per-load state: where files come from, the process
+// environment, the variable namespace once built, and (for Open and plans)
+// the recorder.
 type loader struct {
-	vars *vars
+	src     fileSource
+	procEnv envSource
+	vars    *vars
+	rec     *recorder
 }
 
-func findEntrypoint(dir string) (string, error) {
+func (l *loader) findEntrypoint(dir string) (string, error) {
 	var found []string
 	for _, name := range entrypointNames {
 		path := filepath.Join(dir, name)
-		info, err := os.Stat(path)
-		if err != nil || info.IsDir() {
+		if !l.src.isFile(path) {
 			continue
 		}
 		found = append(found, path)

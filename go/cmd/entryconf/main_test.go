@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -128,7 +129,117 @@ func TestHelpAndVersion(t *testing.T) {
 	if !strings.Contains(out.String(), specVersion) {
 		t.Errorf("version output %q does not name spec %s", out.String(), specVersion)
 	}
-	if specVersion != "0.2.0" {
-		t.Errorf("specVersion is %q; this build implements entryconf spec 0.2.0", specVersion)
+	if specVersion != "0.3.0" {
+		t.Errorf("specVersion is %q; this build implements entryconf spec 0.3.0", specVersion)
+	}
+}
+
+const editCasesDir = "../../../testdata/editcases"
+
+func copyDir(t *testing.T, src, dst string) {
+	t.Helper()
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		from, to := filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())
+		if e.IsDir() {
+			os.Mkdir(to, 0o755)
+			copyDir(t, from, to)
+			continue
+		}
+		data, _ := os.ReadFile(from)
+		os.WriteFile(to, data, 0o644)
+	}
+}
+
+// TestInspectAndEditCommands drives the editing surface through the CLI on a
+// copy of the Ephoros-shaped fixture: inspect finds the writable JSON document
+// behind a TOML entrypoint, a dry run leaves the file alone, a real edit
+// commits, and the TOML entrypoint is never rewritten.
+func TestInspectAndEditCommands(t *testing.T) {
+	work := t.TempDir()
+	copyDir(t, filepath.Join(editCasesDir, "14-edit-included-json-from-toml-entrypoint", "config"), work)
+	tomlBefore, _ := os.ReadFile(filepath.Join(work, "entrypoint.toml"))
+
+	var out, errBuf bytes.Buffer
+	if code := run([]string{"inspect", work, "/ephoros/sessions/task/permission_mode"}, &out, &errBuf); code != 0 {
+		t.Fatalf("inspect: exit %d: %s", code, errBuf.String())
+	}
+	if !strings.Contains(out.String(), `"document": "ephoros.json"`) || !strings.Contains(out.String(), `"writable": true`) {
+		t.Fatalf("inspect output: %s", out.String())
+	}
+	out.Reset()
+	if code := run([]string{"inspect", work}, &out, &errBuf); code != 0 || !strings.Contains(out.String(), `"entrypoint.toml"`) {
+		t.Fatalf("inspect listing: exit %d: %s %s", code, out.String(), errBuf.String())
+	}
+
+	request := filepath.Join(t.TempDir(), "req.json")
+	os.WriteFile(request, []byte(`{"edits":[{"document":"ephoros.json","op":"set","pointer":"/sessions/task/permission_mode","value":"auto"}]}`), 0o644)
+	jsonBefore, _ := os.ReadFile(filepath.Join(work, "ephoros.json"))
+
+	out.Reset()
+	if code := run([]string{"edit", "-n", work, request}, &out, &errBuf); code != 0 {
+		t.Fatalf("edit -n: exit %d: %s", code, errBuf.String())
+	}
+	if !strings.Contains(out.String(), `"committed": false`) {
+		t.Fatalf("dry run output: %s", out.String())
+	}
+	if after, _ := os.ReadFile(filepath.Join(work, "ephoros.json")); !bytes.Equal(after, jsonBefore) {
+		t.Fatalf("dry run wrote the document")
+	}
+
+	out.Reset()
+	if code := run([]string{"edit", work, request}, &out, &errBuf); code != 0 {
+		t.Fatalf("edit: exit %d: %s", code, errBuf.String())
+	}
+	if !strings.Contains(out.String(), `"committed": true`) || !strings.Contains(out.String(), `"revision": "sha256:`) {
+		t.Fatalf("edit output: %s", out.String())
+	}
+	if after, _ := os.ReadFile(filepath.Join(work, "ephoros.json")); !strings.Contains(string(after), `"permission_mode": "auto"`) {
+		t.Fatalf("document not written: %s", after)
+	}
+	if tomlAfter, _ := os.ReadFile(filepath.Join(work, "entrypoint.toml")); !bytes.Equal(tomlAfter, tomlBefore) {
+		t.Fatalf("the TOML entrypoint was rewritten")
+	}
+	if _, err := os.Stat(filepath.Join(work, ".entryconf.lock")); err == nil {
+		t.Fatalf("lock file left behind")
+	}
+}
+
+// TestEditFailuresFollowTheExitConvention: an edit rejected by the library
+// exits 1 with its code first on stderr; a bad request file exits 2 without a
+// code.
+func TestEditFailuresFollowTheExitConvention(t *testing.T) {
+	work := t.TempDir()
+	copyDir(t, filepath.Join(editCasesDir, "23-unsupported-yaml-edit", "config"), work)
+	request := filepath.Join(t.TempDir(), "req.json")
+	os.WriteFile(request, []byte(`{"edits":[{"document":"entrypoint.yaml","op":"set","pointer":"/a","value":2}]}`), 0o644)
+	var out, errBuf bytes.Buffer
+	if code := run([]string{"edit", work, request}, &out, &errBuf); code != 1 {
+		t.Fatalf("exit %d, want 1 (%s)", code, errBuf.String())
+	}
+	if got := firstLine(errBuf.String()); got != "E_UNSUPPORTED_EDIT" {
+		t.Fatalf("first stderr line %q", got)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("stdout on failure: %s", out.String())
+	}
+	if after, _ := os.ReadFile(filepath.Join(work, "entrypoint.yaml")); string(after) != "a: 1\n" {
+		t.Fatalf("yaml was rewritten: %q", after)
+	}
+
+	errBuf.Reset()
+	os.WriteFile(request, []byte(`not json`), 0o644)
+	if code := run([]string{"edit", work, request}, &out, &errBuf); code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	if loc := anyCode.FindString(errBuf.String()); loc != "" {
+		t.Fatalf("usage fault printed a code: %s", loc)
+	}
+	errBuf.Reset()
+	if code := run([]string{"inspect"}, &out, &errBuf); code != 2 {
+		t.Fatalf("inspect without a directory: exit %d, want 2", code)
 	}
 }

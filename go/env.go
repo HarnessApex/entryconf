@@ -1,7 +1,6 @@
 package entryconf
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -20,11 +19,14 @@ type envSource func(name string) (string, bool)
 // (SPEC §4): the config directory's own *.env files, with the process
 // environment taking precedence.
 type vars struct {
-	files map[string]string
-	proc  envSource
+	files  map[string]string
+	origin map[string]string // name -> path of the *.env file defining it
+	proc   envSource
+	used   map[string]bool // every name looked up (SPEC §10.6 "variables")
 }
 
 func (v *vars) lookup(name string) (string, bool) {
+	v.used[name] = true
 	if val, ok := v.proc(name); ok {
 		return val, true
 	}
@@ -32,21 +34,25 @@ func (v *vars) lookup(name string) (string, bool) {
 	return val, ok
 }
 
+// where reports which layer of SPEC §4 supplies name: "process", "file"
+// (with the *.env file's path), or "" when it is unset.
+func (v *vars) where(name string) (origin, file string) {
+	if _, ok := v.proc(name); ok {
+		return "process", ""
+	}
+	if path, ok := v.origin[name]; ok {
+		return "file", path
+	}
+	return "", ""
+}
+
 // loadEnvFiles reads every *.env file directly in dir (non-recursive). The
 // files are unordered peers: a name defined twice, in one file or across two,
-// is E_ENV_CONFLICT.
-func loadEnvFiles(dir string) (map[string]string, error) {
-	entries, err := os.ReadDir(dir)
+// is E_ENV_CONFLICT. The second map records which file defines each name.
+func (l *loader) loadEnvFiles(dir string) (map[string]string, map[string]string, error) {
+	names, err := l.src.envFileNames(dir)
 	if err != nil {
-		return nil, wrapf(CodeParse, err, "cannot read config directory %q", dir)
-	}
-
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".env") {
-			continue
-		}
-		names = append(names, e.Name())
+		return nil, nil, wrapf(CodeParse, err, "cannot read config directory %q", dir)
 	}
 	sort.Strings(names) // deterministic error messages only; files are peers
 
@@ -54,27 +60,30 @@ func loadEnvFiles(dir string) (map[string]string, error) {
 	origin := make(map[string]string)
 	for _, name := range names {
 		path := filepath.Join(dir, name)
-		data, err := os.ReadFile(path)
+		data, err := l.src.readFile(path)
 		if err != nil {
-			return nil, wrapf(CodeParse, err, "cannot read env file %q", path)
+			return nil, nil, wrapf(CodeParse, err, "cannot read env file %q", path)
 		}
 		if err := checkUTF8(path, data); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		fileVals, err := parseEnvFile(path, string(data))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		if l.rec != nil {
+			l.rec.record(path, data, "env", nil)
 		}
 		for _, kv := range fileVals {
 			if prev, dup := origin[kv.name]; dup {
-				return nil, errf(CodeEnvConflict,
+				return nil, nil, errf(CodeEnvConflict,
 					"variable %q defined in both %q and %q", kv.name, prev, path)
 			}
 			origin[kv.name] = path
 			values[kv.name] = kv.value
 		}
 	}
-	return values, nil
+	return values, origin, nil
 }
 
 type envPair struct{ name, value string }
