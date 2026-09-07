@@ -13,6 +13,7 @@ import math
 import re
 from typing import Any
 
+from ._env import Vars
 from ._errors import E_MISSING_VAR, E_SUBSTITUTION, EntryconfError
 
 _NAME = r"[A-Za-z_][A-Za-z0-9_]*"
@@ -24,9 +25,10 @@ _SHORTHAND = re.compile(_NAME)
 _NUMBER = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\Z")
 
 
-def _lookup(name: str, default: str | None, env: dict[str, str]) -> str:
-    if name in env:
-        return env[name]
+def _lookup(name: str, default: str | None, env: Vars) -> str:
+    value = env.lookup(name)
+    if value is not None:
+        return value
     if default is not None:
         return default
     raise EntryconfError(E_MISSING_VAR, f"${{{name}}} is not set and has no default")
@@ -51,7 +53,40 @@ def _typed(text: str) -> Any:
     return text
 
 
-def interpolate_string(value: str, env: dict[str, str]) -> Any:
+def scan_references(value: str) -> list[tuple[str, bool]]:
+    """The ``(name, has_default)`` references of an authored string, in order.
+
+    Tolerates malformed forms: it serves provenance of a value that already
+    loaded, so the string is known to be well-formed.
+    """
+    out: list[tuple[str, bool]] = []
+    i, length = 0, len(value)
+    while i < length:
+        if value[i] != "$" or i + 1 >= length:
+            i += 1
+            continue
+        nxt = value[i + 1]
+        if nxt == "$":
+            i += 2
+        elif nxt == "{":
+            end = value.find("}", i + 2)
+            if end < 0:
+                return out
+            body = value[i + 2 : end]
+            colon = body.find(":")
+            out.append((body, False) if colon < 0 else (body[:colon], True))
+            i = end + 1
+        else:
+            match = _SHORTHAND.match(value, i + 1)
+            if match is None:
+                i += 1
+                continue
+            out.append((match.group(0), False))
+            i = match.end()
+    return out
+
+
+def interpolate_string(value: str, env: Vars) -> Any:
     parts: list[tuple[str, str]] = []  # ("lit" | "ref", text)
     literal: list[str] = []
     i = 0
@@ -113,7 +148,7 @@ def interpolate_string(value: str, env: dict[str, str]) -> Any:
     return "".join(text for _, text in parts)
 
 
-def interpolate(node: Any, env: dict[str, str]) -> Any:
+def interpolate(node: Any, env: Vars) -> Any:
     if isinstance(node, str):
         return interpolate_string(node, env)
     if isinstance(node, dict):

@@ -14,6 +14,14 @@ E_INCLUDE_CYCLE = "E_INCLUDE_CYCLE"
 E_MISSING_VAR = "E_MISSING_VAR"
 E_SUBSTITUTION = "E_SUBSTITUTION"
 
+# Editing codes (SPEC §10.9), added in 0.3.0.
+E_UNSUPPORTED_EDIT = "E_UNSUPPORTED_EDIT"
+E_EDIT = "E_EDIT"
+E_PATH = "E_PATH"
+E_STALE_PLAN = "E_STALE_PLAN"
+E_LOCKED = "E_LOCKED"
+E_WRITE = "E_WRITE"
+
 
 class EntryconfError(Exception):
     """A load-time failure. ``code`` is one of the ``E_*`` codes in SPEC §7."""
