@@ -80,7 +80,7 @@ fn interpolate_string(s: &str, vars: &Vars<'_>) -> Result<Value, Error> {
                     )));
                 }
                 let expanded = match vars.get(name) {
-                    Some(v) => v.to_string(),
+                    Some(v) => v,
                     None => match default {
                         Some(text) => text.to_string(),
                         None => {
@@ -109,7 +109,6 @@ fn interpolate_string(s: &str, vars: &Vars<'_>) -> Result<Value, Error> {
                         format!("variable {name:?} is not set and has no default"),
                     ));
                 };
-                let expanded = expanded.to_string();
                 references += 1;
                 spans_whole_string = i == 0 && end == bytes.len();
                 out.push_str(&expanded);

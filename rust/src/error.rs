@@ -2,9 +2,12 @@
 
 use std::fmt;
 
-/// The eight normative entryconf error codes (SPEC §7).
+/// The normative entryconf error codes: the eight load codes of SPEC §7 and,
+/// since 0.3.0, the six editing codes of SPEC §10.9.
 ///
-/// Codes are part of the public contract; messages are not.
+/// Codes are part of the public contract; messages are not. New codes may be
+/// added in later versions, so a `match` on this enum should keep a wildcard
+/// arm unless it is prepared to be updated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ErrorCode {
     /// `E_NO_ENTRYPOINT` — no entrypoint file in the directory.
@@ -23,6 +26,23 @@ pub enum ErrorCode {
     MissingVar,
     /// `E_SUBSTITUTION` — malformed `$` or `@` form.
     Substitution,
+    /// `E_UNSUPPORTED_EDIT` — the document's format is not writable (YAML,
+    /// TOML, `*.env`), or one request names more than one document.
+    UnsupportedEdit,
+    /// `E_EDIT` — an invalid edit request (unknown document, unknown op,
+    /// expression mode with a non-string value, empty request).
+    Edit,
+    /// `E_PATH` — a malformed JSON Pointer, or one that cannot be resolved or
+    /// applied.
+    Path,
+    /// `E_STALE_PLAN` — at commit, a dependency's revision or the variables
+    /// fingerprint differs from the plan's.
+    StalePlan,
+    /// `E_LOCKED` — the directory lock could not be acquired in time.
+    Locked,
+    /// `E_WRITE` — the replacement file could not be written or renamed; the
+    /// target is unchanged.
+    Write,
 }
 
 impl ErrorCode {
@@ -38,6 +58,12 @@ impl ErrorCode {
             ErrorCode::IncludeCycle => "E_INCLUDE_CYCLE",
             ErrorCode::MissingVar => "E_MISSING_VAR",
             ErrorCode::Substitution => "E_SUBSTITUTION",
+            ErrorCode::UnsupportedEdit => "E_UNSUPPORTED_EDIT",
+            ErrorCode::Edit => "E_EDIT",
+            ErrorCode::Path => "E_PATH",
+            ErrorCode::StalePlan => "E_STALE_PLAN",
+            ErrorCode::Locked => "E_LOCKED",
+            ErrorCode::Write => "E_WRITE",
         }
     }
 }
@@ -48,7 +74,8 @@ impl fmt::Display for ErrorCode {
     }
 }
 
-/// A load failure: a normative [`ErrorCode`] plus a non-normative message.
+/// A load or editing failure: a normative [`ErrorCode`] plus a non-normative
+/// message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Error {
     code: ErrorCode,

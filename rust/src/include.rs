@@ -7,33 +7,62 @@ use serde_json::{Map, Value};
 
 use crate::error::{Error, ErrorCode};
 use crate::parse;
+use crate::pointer::escape_token;
+use crate::source::{include_target, RawGraft};
+use crate::Loader;
 
-const INCLUDE_PREFIX: &str = "@file:";
+pub(crate) const INCLUDE_PREFIX: &str = "@file:";
 
-/// Resolves every `@file:` reference in `value`.
-///
-/// `base_dir` is the directory of the file `value` came from — include paths are
-/// relative to it, never to the entrypoint or the working directory. `stack` holds
-/// the canonical paths of the files currently being resolved, innermost last; a
-/// repeat entry is a cycle.
-pub(crate) fn resolve(
-    value: Value,
-    base_dir: &Path,
-    stack: &mut Vec<PathBuf>,
-) -> Result<Value, Error> {
+/// Whether an authored string is an `@file:` reference (not an `@@` escape, a
+/// literal, or a reserved directive).
+pub(crate) fn is_include(s: &str) -> bool {
+    s.starts_with(INCLUDE_PREFIX)
+}
+
+/// The resolver's position: the file whose value is being walked (lexical
+/// path) and its directory, the pointer within that file and within the
+/// effective tree, the canonical paths of the files being resolved (for cycle
+/// detection, innermost last), and the `@file:` references traversed so far
+/// (SPEC §10.3's chain, outermost first).
+pub(crate) struct Walk {
+    pub(crate) doc: PathBuf,
+    pub(crate) dir: PathBuf,
+    pub(crate) src: String,
+    pub(crate) eff: String,
+    pub(crate) stack: Vec<PathBuf>,
+    pub(crate) chain: Vec<(PathBuf, String)>,
+}
+
+impl Walk {
+    fn step(&self, token: &str) -> Walk {
+        let suffix = format!("/{}", escape_token(token));
+        Walk {
+            doc: self.doc.clone(),
+            dir: self.dir.clone(),
+            src: format!("{}{suffix}", self.src),
+            eff: format!("{}{suffix}", self.eff),
+            stack: self.stack.clone(),
+            chain: self.chain.clone(),
+        }
+    }
+}
+
+/// Resolves every `@file:` reference in `value` (SPEC §5).
+pub(crate) fn resolve(l: &Loader<'_>, value: Value, w: &Walk) -> Result<Value, Error> {
     match value {
-        Value::String(s) => resolve_string(s, base_dir, stack),
+        Value::String(s) => resolve_string(l, s, w),
         Value::Array(items) => {
             let mut out = Vec::with_capacity(items.len());
-            for item in items {
-                out.push(resolve(item, base_dir, stack)?);
+            for (i, item) in items.into_iter().enumerate() {
+                out.push(resolve(l, item, &w.step(&i.to_string()))?);
             }
             Ok(Value::Array(out))
         }
         Value::Object(object) => {
             let mut out = Map::new();
             for (key, item) in object {
-                out.insert(key, resolve(item, base_dir, stack)?);
+                let resolved = resolve(l, item, &w.step(&key))?;
+                out.insert(key, resolved);
             }
             Ok(Value::Object(out))
         }
@@ -41,13 +70,13 @@ pub(crate) fn resolve(
     }
 }
 
-fn resolve_string(s: String, base_dir: &Path, stack: &mut Vec<PathBuf>) -> Result<Value, Error> {
+fn resolve_string(l: &Loader<'_>, s: String, w: &Walk) -> Result<Value, Error> {
     // `@@` is the escape and must be tested before the include prefix.
     if let Some(rest) = s.strip_prefix("@@") {
         return Ok(Value::String(format!("@{rest}")));
     }
     if let Some(target) = s.strip_prefix(INCLUDE_PREFIX) {
-        return graft(target, base_dir, stack);
+        return graft(l, target, w);
     }
     if s.starts_with('@') {
         return Err(Error::new(
@@ -58,14 +87,14 @@ fn resolve_string(s: String, base_dir: &Path, stack: &mut Vec<PathBuf>) -> Resul
     Ok(Value::String(s))
 }
 
-fn graft(target: &str, base_dir: &Path, stack: &mut Vec<PathBuf>) -> Result<Value, Error> {
+fn graft(l: &Loader<'_>, target: &str, w: &Walk) -> Result<Value, Error> {
     if target.is_empty() {
         return Err(Error::new(
             ErrorCode::Include,
             "`@file:` with an empty path".to_string(),
         ));
     }
-    let joined = base_dir.join(target);
+    let joined = include_target(target, &w.dir);
 
     let Some(format) = parse::format_for_path(&joined) else {
         return Err(Error::new(
@@ -76,13 +105,15 @@ fn graft(target: &str, base_dir: &Path, stack: &mut Vec<PathBuf>) -> Result<Valu
         ));
     };
 
+    // Cycle detection compares canonical paths, so a file reached under two
+    // names (a symlink, a `..` detour) is still one file.
     let canonical = fs::canonicalize(&joined).map_err(|e| {
         Error::new(
             ErrorCode::Include,
             format!("include {target:?} ({}): {e}", joined.display()),
         )
     })?;
-    if !canonical.is_file() {
+    if !l.src.is_file(&joined) {
         return Err(Error::new(
             ErrorCode::Include,
             format!(
@@ -92,8 +123,8 @@ fn graft(target: &str, base_dir: &Path, stack: &mut Vec<PathBuf>) -> Result<Valu
         ));
     }
 
-    if let Some(at) = stack.iter().position(|p| *p == canonical) {
-        let mut chain: Vec<String> = stack[at..]
+    if let Some(at) = w.stack.iter().position(|p| *p == canonical) {
+        let mut chain: Vec<String> = w.stack[at..]
             .iter()
             .map(|p| p.display().to_string())
             .collect();
@@ -104,25 +135,44 @@ fn graft(target: &str, base_dir: &Path, stack: &mut Vec<PathBuf>) -> Result<Valu
         ));
     }
 
-    let bytes = fs::read(&canonical).map_err(|e| {
+    let bytes = l.src.read_file(&joined).map_err(|e| {
         Error::new(
             ErrorCode::Include,
-            format!("include {target:?} ({}): {e}", canonical.display()),
+            format!("include {target:?} ({}): {e}", joined.display()),
         )
     })?;
-    let text = String::from_utf8(bytes).map_err(|_| {
+    let text = String::from_utf8(bytes.clone()).map_err(|_| {
         Error::new(
             ErrorCode::Parse,
-            format!("{} is not valid UTF-8", canonical.display()),
+            format!("{} is not valid UTF-8", joined.display()),
         )
     })?;
-    let tree = parse::parse(&text, format, &canonical)?;
+    let tree = parse::parse(&text, format, &joined)?;
+    let mut refs = w.chain.clone();
+    refs.push((w.doc.clone(), w.src.clone()));
+    if let Some(rec) = l.rec {
+        rec.record(&joined, &bytes, format.into(), Some(tree.clone()));
+        rec.graft(
+            &joined,
+            RawGraft {
+                effective: w.eff.clone(),
+                chain: refs.clone(),
+            },
+        );
+    }
 
-    let parent = canonical
+    let parent = joined
         .parent()
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+    let mut stack = w.stack.clone();
     stack.push(canonical);
-    let resolved = resolve(tree, &parent, stack);
-    stack.pop();
-    resolved
+    let next = Walk {
+        doc: joined,
+        dir: parent,
+        src: String::new(),
+        eff: w.eff.clone(),
+        stack,
+        chain: refs,
+    };
+    resolve(l, tree, &next)
 }

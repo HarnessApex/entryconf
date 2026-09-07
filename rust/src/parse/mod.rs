@@ -31,6 +31,16 @@ pub(crate) fn format_for_path(path: &Path) -> Option<Format> {
     }
 }
 
+impl From<Format> for crate::edit::Format {
+    fn from(f: Format) -> Self {
+        match f {
+            Format::Json => crate::edit::Format::Json,
+            Format::Yaml => crate::edit::Format::Yaml,
+            Format::Toml => crate::edit::Format::Toml,
+        }
+    }
+}
+
 /// Parses one document. Every failure is `E_PARSE`.
 pub(crate) fn parse(text: &str, format: Format, origin: &Path) -> Result<Value, Error> {
     let result = match format {

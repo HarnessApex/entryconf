@@ -1,8 +1,8 @@
 [package]
 name = "entryconf"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
-description = "Rust implementation of the entryconf config-directory convention (spec 0.2.0)"
+description = "Rust implementation of the entryconf config-directory convention (spec 0.3.0): load, inspect provenance, and edit JSON source documents"
 license = "Apache-2.0"
 repository = "https://github.com/entryconf/entryconf"
 readme = "README.md"
@@ -15,8 +15,9 @@ exclude = ["tests/**", "target/**"]
 
 [dependencies]
 saphyr-parser = "0.0.12"
-serde = "1"
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 toml = "1"
 
 [dev-dependencies]
@@ -26,6 +27,14 @@ libtest-mimic = "0.8"
 name = "entryconf-dump"
 path = "src/bin/entryconf-dump.rs"
 
+[[bin]]
+name = "entryconf-edit"
+path = "src/bin/entryconf-edit.rs"
+
 [[test]]
 name = "conformance"
+harness = false
+
+[[test]]
+name = "editcases"
 harness = false
