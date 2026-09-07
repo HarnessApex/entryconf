@@ -1,0 +1,18 @@
+{
+  "tree": {
+    "app": {
+      "name": "svc",
+      "replicas": 3
+    },
+    "name": "demo"
+  },
+  "affected": [
+    "/app/replicas"
+  ],
+  "documents": {
+    "app.json": {
+      "name": "svc",
+      "replicas": 3
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "origin": {
+    "effective": "/svc/port",
+    "document": "entrypoint.yaml",
+    "pointer": "/svc/port",
+    "authored": 8080,
+    "chain": [],
+    "variables": [],
+    "writable": false
+  }
+}

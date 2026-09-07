@@ -1,0 +1,32 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/home",
+      "value": "$EC_HOME"
+    },
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/inc",
+      "value": "@file:x.json"
+    },
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/nested",
+      "value": {
+        "list": [
+          "$$",
+          "@@x",
+          {
+            "k": "a $EC_B c",
+            "at": "@$x"
+          }
+        ],
+        "n": 1
+      }
+    }
+  ]
+}

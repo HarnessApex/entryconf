@@ -1,0 +1,4 @@
+{
+  "host": "a",
+  "opts": "@file:opts.json"
+}

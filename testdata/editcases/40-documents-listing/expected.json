@@ -1,0 +1,43 @@
+{
+  "documents": {
+    "entrypoint.json": {
+      "format": "json",
+      "writable": true,
+      "grafts": [
+        {
+          "effective": "",
+          "chain": []
+        }
+      ]
+    },
+    "shared.json": {
+      "format": "json",
+      "writable": true,
+      "grafts": [
+        {
+          "effective": "/a",
+          "chain": [
+            {
+              "document": "entrypoint.json",
+              "pointer": "/a"
+            }
+          ]
+        },
+        {
+          "effective": "/b/inner",
+          "chain": [
+            {
+              "document": "entrypoint.json",
+              "pointer": "/b/inner"
+            }
+          ]
+        }
+      ]
+    },
+    "vars.env": {
+      "format": "env",
+      "writable": false,
+      "grafts": []
+    }
+  }
+}

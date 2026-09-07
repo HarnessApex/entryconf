@@ -1,0 +1,6 @@
+{
+  "a": "@file:shared.json",
+  "b": {
+    "inner": "@file:shared.json"
+  }
+}

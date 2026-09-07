@@ -1,0 +1,15 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "remove",
+      "pointer": "/a"
+    },
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/b",
+      "value": null
+    }
+  ]
+}

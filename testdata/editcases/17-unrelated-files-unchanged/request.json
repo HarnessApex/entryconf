@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "data.json",
+      "op": "set",
+      "pointer": "/n",
+      "value": 2
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+stage: $EC_STAGE
+mid: "@file:sub/mid.toml"
+leaf_direct: "@file:sub/leaf.json"

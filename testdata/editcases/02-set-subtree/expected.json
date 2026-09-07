@@ -1,0 +1,23 @@
+{
+  "tree": {
+    "app": "x",
+    "database": {
+      "host": "b",
+      "tls": true
+    }
+  },
+  "affected": [
+    "/database/host",
+    "/database/port",
+    "/database/tls"
+  ],
+  "documents": {
+    "entrypoint.json": {
+      "app": "x",
+      "database": {
+        "host": "b",
+        "tls": true
+      }
+    }
+  }
+}

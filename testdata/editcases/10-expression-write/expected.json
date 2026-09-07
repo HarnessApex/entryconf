@@ -1,0 +1,19 @@
+{
+  "tree": {
+    "mode": "prod",
+    "fallback": "fb",
+    "port": 8080
+  },
+  "affected": [
+    "/fallback",
+    "/mode",
+    "/port"
+  ],
+  "documents": {
+    "entrypoint.json": {
+      "fallback": "${EC_UNSET_X:-fb}",
+      "mode": "${EC_MODE:-dev}",
+      "port": "${EC_PORT}"
+    }
+  }
+}

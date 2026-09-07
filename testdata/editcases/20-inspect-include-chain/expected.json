@@ -1,0 +1,26 @@
+{
+  "origin": {
+    "effective": "/mid/leaf/stage",
+    "document": "sub/leaf.json",
+    "pointer": "/stage",
+    "authored": "$EC_STAGE",
+    "chain": [
+      {
+        "document": "entrypoint.yaml",
+        "pointer": "/mid"
+      },
+      {
+        "document": "sub/mid.toml",
+        "pointer": "/leaf"
+      }
+    ],
+    "variables": [
+      {
+        "name": "EC_STAGE",
+        "origin": "file",
+        "file": "vars.env"
+      }
+    ],
+    "writable": true
+  }
+}

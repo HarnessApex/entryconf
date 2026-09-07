@@ -1,0 +1,19 @@
+{
+  "tree": {
+    "l": [
+      "a",
+      "${EC_NOPE}"
+    ]
+  },
+  "affected": [
+    "/l"
+  ],
+  "documents": {
+    "entrypoint.json": {
+      "l": [
+        "a",
+        "$${EC_NOPE}"
+      ]
+    }
+  }
+}

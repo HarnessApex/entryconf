@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "app.json",
+      "op": "set",
+      "pointer": "/replicas",
+      "value": 3
+    }
+  ]
+}

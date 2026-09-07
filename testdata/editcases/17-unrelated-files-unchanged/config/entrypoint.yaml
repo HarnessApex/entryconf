@@ -1,0 +1,4 @@
+# comments and formatting here must survive untouched
+notes:   "@file:notes.toml"   # odd spacing on purpose
+data: "@file:data.json"
+level: ${EC_LEVEL}

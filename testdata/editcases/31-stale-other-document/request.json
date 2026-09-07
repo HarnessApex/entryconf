@@ -1,0 +1,15 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/port",
+      "value": 2
+    }
+  ],
+  "before_commit": {
+    "files": {
+      "other.json": "{\"o\": 2}\n"
+    }
+  }
+}

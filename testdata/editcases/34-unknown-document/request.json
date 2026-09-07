@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "nope.json",
+      "op": "set",
+      "pointer": "/a",
+      "value": 2
+    }
+  ]
+}

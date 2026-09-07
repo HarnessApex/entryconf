@@ -1,0 +1,18 @@
+{
+  "tree": {
+    "db": {
+      "host": "a",
+      "opts": {
+        "tls": true
+      }
+    }
+  },
+  "affected": [
+    "/db/opts/tls"
+  ],
+  "documents": {
+    "sub/opts.json": {
+      "tls": true
+    }
+  }
+}

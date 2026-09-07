@@ -1,0 +1,3 @@
+{
+  "level": "${EC_LEVEL:-info}"
+}

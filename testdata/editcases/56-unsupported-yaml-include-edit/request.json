@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "part.yaml",
+      "op": "set",
+      "pointer": "/k",
+      "value": "w"
+    }
+  ]
+}

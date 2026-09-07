@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.yaml",
+      "op": "set",
+      "pointer": "/a",
+      "value": 2
+    }
+  ]
+}

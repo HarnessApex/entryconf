@@ -1,0 +1,17 @@
+{
+  "tree": {
+    "a/b": {
+      "c~d": 2
+    }
+  },
+  "affected": [
+    "/a~1b/c~0d"
+  ],
+  "documents": {
+    "entrypoint.json": {
+      "a/b": {
+        "c~d": 2
+      }
+    }
+  }
+}

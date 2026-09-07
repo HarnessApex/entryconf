@@ -1,0 +1,16 @@
+{
+  "origin": {
+    "effective": "/level",
+    "document": "entrypoint.json",
+    "pointer": "/level",
+    "authored": "${EC_LEVEL:-info}",
+    "chain": [],
+    "variables": [
+      {
+        "name": "EC_LEVEL",
+        "origin": "default"
+      }
+    ],
+    "writable": true
+  }
+}

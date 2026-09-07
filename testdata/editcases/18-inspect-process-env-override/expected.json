@@ -1,0 +1,16 @@
+{
+  "origin": {
+    "effective": "/host",
+    "document": "entrypoint.json",
+    "pointer": "/host",
+    "authored": "${EC_TEST_HOST}",
+    "chain": [],
+    "variables": [
+      {
+        "name": "EC_TEST_HOST",
+        "origin": "process"
+      }
+    ],
+    "writable": true
+  }
+}

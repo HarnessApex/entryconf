@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "cfg.toml",
+      "op": "set",
+      "pointer": "/a",
+      "value": 2
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "tree": {
+    "app": "demo",
+    "port": 9090
+  },
+  "affected": [
+    "/port"
+  ],
+  "documents": {
+    "entrypoint.json": {
+      "app": "demo",
+      "port": 9090
+    }
+  }
+}

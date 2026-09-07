@@ -1,0 +1,15 @@
+{
+  "tree": {
+    "inc": {
+      "o": 1
+    }
+  },
+  "affected": [
+    "/inc"
+  ],
+  "documents": {
+    "entrypoint.json": {
+      "inc": "@file:other.json"
+    }
+  }
+}

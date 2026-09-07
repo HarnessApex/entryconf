@@ -1,0 +1,17 @@
+{
+  "origin": {
+    "effective": "/list/1",
+    "document": "entrypoint.json",
+    "pointer": "/list/1",
+    "authored": "$EC_X",
+    "chain": [],
+    "variables": [
+      {
+        "name": "EC_X",
+        "origin": "file",
+        "file": "vars.env"
+      }
+    ],
+    "writable": true
+  }
+}

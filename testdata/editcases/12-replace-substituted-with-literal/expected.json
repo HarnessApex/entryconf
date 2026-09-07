@@ -1,0 +1,13 @@
+{
+  "tree": {
+    "mode": "fixed"
+  },
+  "affected": [
+    "/mode"
+  ],
+  "documents": {
+    "entrypoint.json": {
+      "mode": "fixed"
+    }
+  }
+}

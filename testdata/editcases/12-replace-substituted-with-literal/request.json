@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/mode",
+      "value": "fixed"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "tree": {
+    "a": 1
+  },
+  "affected": [],
+  "documents": {
+    "entrypoint.json": {
+      "a": 1
+    }
+  }
+}

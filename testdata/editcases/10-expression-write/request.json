@@ -1,0 +1,25 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/mode",
+      "value": "${EC_MODE:-dev}",
+      "mode": "expression"
+    },
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/fallback",
+      "value": "${EC_UNSET_X:-fb}",
+      "mode": "expression"
+    },
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/port",
+      "value": "${EC_PORT}",
+      "mode": "expression"
+    }
+  ]
+}

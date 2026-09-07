@@ -1,0 +1,11 @@
+{
+  "tree": {
+    "inc": "scalar"
+  },
+  "affected": [
+    "/inc"
+  ],
+  "documents": {
+    "x.json": "scalar"
+  }
+}

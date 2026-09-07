@@ -1,0 +1,16 @@
+{
+  "origin": {
+    "effective": "/b/inner/v",
+    "document": "shared.json",
+    "pointer": "/v",
+    "authored": 1,
+    "chain": [
+      {
+        "document": "entrypoint.json",
+        "pointer": "/b/inner"
+      }
+    ],
+    "variables": [],
+    "writable": true
+  }
+}

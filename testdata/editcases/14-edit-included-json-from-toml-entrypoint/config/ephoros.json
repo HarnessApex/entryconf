@@ -1,0 +1,8 @@
+{
+  "sessions": {
+    "task": {
+      "permission_mode": "ask",
+      "max_turns": 20
+    }
+  }
+}

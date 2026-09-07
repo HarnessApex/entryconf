@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "ephoros.json",
+      "op": "set",
+      "pointer": "/sessions/task/permission_mode",
+      "value": "auto"
+    }
+  ]
+}

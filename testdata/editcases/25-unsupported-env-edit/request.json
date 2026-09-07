@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "vars.env",
+      "op": "set",
+      "pointer": "/EC_X",
+      "value": "2"
+    }
+  ]
+}

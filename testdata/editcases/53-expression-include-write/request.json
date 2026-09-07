@@ -1,0 +1,11 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/inc",
+      "value": "@file:other.json",
+      "mode": "expression"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "origin": {
+    "effective": "/inc",
+    "document": "x.json",
+    "pointer": "",
+    "authored": {
+      "v": true
+    },
+    "chain": [
+      {
+        "document": "entrypoint.json",
+        "pointer": "/inc"
+      }
+    ],
+    "variables": [],
+    "writable": true
+  }
+}

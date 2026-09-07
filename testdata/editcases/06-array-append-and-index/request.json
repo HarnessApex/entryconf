@@ -1,0 +1,21 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/list/-",
+      "value": 4
+    },
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/list/0",
+      "value": 10
+    },
+    {
+      "document": "entrypoint.json",
+      "op": "remove",
+      "pointer": "/list/1"
+    }
+  ]
+}

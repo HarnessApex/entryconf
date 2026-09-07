@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "shared.json",
+      "op": "set",
+      "pointer": "/v",
+      "value": 2
+    }
+  ]
+}

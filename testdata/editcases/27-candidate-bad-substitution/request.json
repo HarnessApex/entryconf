@@ -1,0 +1,11 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/x",
+      "value": "price $",
+      "mode": "expression"
+    }
+  ]
+}

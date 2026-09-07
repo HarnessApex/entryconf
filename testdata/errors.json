@@ -30,5 +30,35 @@
   {
     "code": "E_SUBSTITUTION",
     "condition": "malformed `$` or `@` form"
+  },
+  {
+    "code": "E_UNSUPPORTED_EDIT",
+    "condition": "editing a document whose format is not writable (YAML, TOML, `*.env`), or one request naming more than one document",
+    "suite": "editcases"
+  },
+  {
+    "code": "E_EDIT",
+    "condition": "an invalid edit request: unknown document key, unknown op, missing or non-JSON value, expression mode with a non-string value, empty request",
+    "suite": "editcases"
+  },
+  {
+    "code": "E_PATH",
+    "condition": "a malformed JSON Pointer, or one that cannot be resolved or applied",
+    "suite": "editcases"
+  },
+  {
+    "code": "E_STALE_PLAN",
+    "condition": "at commit, a dependency's revision or the variables fingerprint differs from the plan's",
+    "suite": "editcases"
+  },
+  {
+    "code": "E_LOCKED",
+    "condition": "the directory lock could not be acquired within the timeout",
+    "suite": "unit"
+  },
+  {
+    "code": "E_WRITE",
+    "condition": "the temporary file could not be created or written, or the rename failed; the target is unchanged",
+    "suite": "unit"
   }
 ]

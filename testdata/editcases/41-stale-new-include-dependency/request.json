@@ -1,0 +1,16 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/x",
+      "value": "@file:extra.json",
+      "mode": "expression"
+    }
+  ],
+  "before_commit": {
+    "files": {
+      "extra.json": "{\"e\": 2}\n"
+    }
+  }
+}

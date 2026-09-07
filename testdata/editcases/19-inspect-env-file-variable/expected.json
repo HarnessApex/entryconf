@@ -1,0 +1,21 @@
+{
+  "origin": {
+    "effective": "/conn",
+    "document": "entrypoint.json",
+    "pointer": "/conn",
+    "authored": "$EC_A-${EC_B:-x}",
+    "chain": [],
+    "variables": [
+      {
+        "name": "EC_A",
+        "origin": "file",
+        "file": "app.env"
+      },
+      {
+        "name": "EC_B",
+        "origin": "default"
+      }
+    ],
+    "writable": true
+  }
+}

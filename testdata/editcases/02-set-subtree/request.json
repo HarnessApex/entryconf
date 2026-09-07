@@ -1,0 +1,13 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/database",
+      "value": {
+        "host": "b",
+        "tls": true
+      }
+    }
+  ]
+}

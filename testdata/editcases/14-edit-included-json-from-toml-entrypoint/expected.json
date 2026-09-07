@@ -1,0 +1,28 @@
+{
+  "tree": {
+    "ephoros": {
+      "sessions": {
+        "task": {
+          "permission_mode": "auto",
+          "max_turns": 20
+        }
+      }
+    },
+    "workspace": {
+      "name": "demo"
+    }
+  },
+  "affected": [
+    "/ephoros/sessions/task/permission_mode"
+  ],
+  "documents": {
+    "ephoros.json": {
+      "sessions": {
+        "task": {
+          "max_turns": 20,
+          "permission_mode": "auto"
+        }
+      }
+    }
+  }
+}

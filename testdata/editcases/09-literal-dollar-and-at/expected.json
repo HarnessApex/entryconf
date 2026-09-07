@@ -1,0 +1,41 @@
+{
+  "tree": {
+    "keep": "x",
+    "home": "$EC_HOME",
+    "inc": "@file:x.json",
+    "nested": {
+      "list": [
+        "$$",
+        "@@x",
+        {
+          "k": "a $EC_B c",
+          "at": "@$x"
+        }
+      ],
+      "n": 1
+    }
+  },
+  "affected": [
+    "/home",
+    "/inc",
+    "/nested"
+  ],
+  "documents": {
+    "entrypoint.json": {
+      "home": "$$EC_HOME",
+      "inc": "@@file:x.json",
+      "keep": "x",
+      "nested": {
+        "list": [
+          "$$$$",
+          "@@@x",
+          {
+            "at": "@@$$x",
+            "k": "a $$EC_B c"
+          }
+        ],
+        "n": 1
+      }
+    }
+  }
+}

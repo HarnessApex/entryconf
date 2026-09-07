@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "sub/opts.json",
+      "op": "set",
+      "pointer": "/tls",
+      "value": true
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "tree": {
+    "b": null,
+    "c": 3
+  },
+  "affected": [
+    "/a",
+    "/b"
+  ],
+  "documents": {
+    "entrypoint.json": {
+      "b": null,
+      "c": 3
+    }
+  }
+}

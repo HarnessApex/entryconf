@@ -11,7 +11,16 @@
 //   - every expected.json parses as JSON;
 //   - every expected_error.txt holds exactly one error code, and that code is
 //     listed in testdata/errors.json;
-//   - every code listed in testdata/errors.json has at least one failure case.
+//   - every code listed in testdata/errors.json has at least one failure case
+//     in the suite its "suite" field names — testdata/cases by default,
+//     testdata/editcases for the editing codes of SPEC §10.9 — except codes
+//     whose "suite" is "unit", which depend on concurrency or filesystem state
+//     a fixture cannot carry and are covered by each implementation's unit
+//     tests (SPEC §10.9);
+//   - every entry under testdata/editcases/ (SPEC §11) is likewise a
+//     NN-kebab-name directory with a config/ directory, a request.json that
+//     is exactly one of the three request shapes, and exactly one of
+//     expected.json or expected_error.txt.
 //
 // Usage:
 //
@@ -134,14 +143,49 @@ func (l *linter) run() error {
 	if err != nil {
 		return err
 	}
+	known := map[string]bool{}
+	for code := range knownCodes {
+		known[code] = true
+	}
 
+	codeUsed := map[string][]string{} // error code -> cases expecting it
+	if err := l.lintSuite(casesDir, filepath.Join("testdata", "cases"), known, codeUsed, false); err != nil {
+		return err
+	}
+	editUsed := map[string][]string{}
+	if err := l.lintSuite(filepath.Join(l.root, "testdata", "editcases"), filepath.Join("testdata", "editcases"), known, editUsed, true); err != nil {
+		return err
+	}
+
+	for _, code := range sortedKeys(known) {
+		switch suite := knownCodes[code]; suite {
+		case "unit":
+			// Covered by per-implementation unit tests (SPEC §10.9); a fixture
+			// cannot carry lock contention or a failing filesystem.
+		case "editcases":
+			if len(editUsed[code]) == 0 {
+				l.errorf(filepath.Join("testdata", "errors.json"),
+					"error code %s has no failure case: add an editing case under testdata/editcases with expected_error.txt containing %s", code, code)
+			}
+		default:
+			if len(codeUsed[code]) == 0 {
+				l.errorf(filepath.Join("testdata", "errors.json"),
+					"error code %s has no failure case: add a case with expected_error.txt containing %s", code, code)
+			}
+		}
+	}
+	return nil
+}
+
+// lintSuite walks one fixture suite directory. editing selects the SPEC §11
+// shape (a request.json is required and validated) over the SPEC §8 one.
+func (l *linter) lintSuite(casesDir, relDir string, knownCodes map[string]bool, codeUsed map[string][]string, editing bool) error {
 	entries, err := os.ReadDir(casesDir)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", casesDir, err)
 	}
 
-	numbers := map[int]string{}       // numeric prefix -> first case that used it
-	codeUsed := map[string][]string{} // error code -> cases expecting it
+	numbers := map[int]string{} // numeric prefix -> first case that used it
 	caseCount := 0
 
 	for _, entry := range entries {
@@ -149,7 +193,7 @@ func (l *linter) run() error {
 		if strings.HasPrefix(name, ".") {
 			continue
 		}
-		rel := filepath.Join("testdata", "cases", name)
+		rel := filepath.Join(relDir, name)
 
 		if !entry.IsDir() {
 			if name == "README.md" {
@@ -176,19 +220,88 @@ func (l *linter) run() error {
 
 		dir := filepath.Join(casesDir, name)
 		l.checkCase(dir, rel, knownCodes, codeUsed)
+		if editing {
+			l.checkRequest(dir, rel)
+		}
 	}
 
 	if caseCount == 0 {
-		l.errorf(filepath.Join("testdata", "cases"), "no case directories found")
-	}
-
-	for _, code := range sortedKeys(knownCodes) {
-		if len(codeUsed[code]) == 0 {
-			l.errorf(filepath.Join("testdata", "errors.json"),
-				"error code %s has no failure case: add a case with expected_error.txt containing %s", code, code)
-		}
+		l.errorf(relDir, "no case directories found")
 	}
 	return nil
+}
+
+// checkRequest validates an editing case's request.json (SPEC §11): exactly
+// one of "inspect" (a string), "documents" (true), or "edits" (a non-empty
+// array of edit objects), with "before_commit" allowed only beside "edits".
+func (l *linter) checkRequest(dir, rel string) {
+	where := filepath.Join(rel, "request.json")
+	data, err := os.ReadFile(filepath.Join(dir, "request.json"))
+	if err != nil {
+		l.errorf(rel, "missing request.json: an editing case must say what to do")
+		return
+	}
+	var req map[string]any
+	if err := json.Unmarshal(data, &req); err != nil {
+		l.errorf(where, "invalid JSON: %v", err)
+		return
+	}
+	shapes := 0
+	if v, ok := req["inspect"]; ok {
+		shapes++
+		if _, isStr := v.(string); !isStr {
+			l.errorf(where, "\"inspect\" must be an effective JSON Pointer string")
+		}
+	}
+	if v, ok := req["documents"]; ok {
+		shapes++
+		if v != true {
+			l.errorf(where, "\"documents\" must be true")
+		}
+	}
+	if v, ok := req["edits"]; ok {
+		shapes++
+		edits, isArr := v.([]any)
+		if !isArr {
+			l.errorf(where, "\"edits\" must be an array")
+		}
+		for i, e := range edits {
+			edit, isObj := e.(map[string]any)
+			if !isObj {
+				l.errorf(where, "edits[%d] is not an object", i)
+				continue
+			}
+			for _, field := range []string{"document", "op", "pointer"} {
+				if _, isStr := edit[field].(string); !isStr {
+					l.errorf(where, "edits[%d] lacks a string %q", i, field)
+				}
+			}
+		}
+	}
+	if bc, ok := req["before_commit"]; ok {
+		if _, hasEdits := req["edits"]; !hasEdits {
+			l.errorf(where, "\"before_commit\" is only meaningful beside \"edits\"")
+		}
+		m, isObj := bc.(map[string]any)
+		if !isObj {
+			l.errorf(where, "\"before_commit\" must be an object")
+		}
+		for key := range m {
+			if key != "files" && key != "procenv" {
+				l.errorf(where, "\"before_commit\" has unknown member %q (want \"files\" and/or \"procenv\")", key)
+			}
+		}
+	}
+	for key := range req {
+		switch key {
+		case "inspect", "documents", "edits", "before_commit":
+		default:
+			l.errorf(where, "unknown member %q", key)
+		}
+	}
+	if shapes != 1 {
+		l.errorf(where, "must contain exactly one of \"inspect\", \"documents\", or \"edits\" (found %d)", shapes)
+	}
 }
 
 // checkCase validates one case directory.
@@ -252,11 +365,14 @@ func isFile(path string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
-// loadErrorCodes reads testdata/errors.json. The file is owned elsewhere in
-// the repo, so several plausible shapes are accepted: an array of code
-// strings, an array of objects with a "code" (or "name") field, an object
-// keyed by code, or any of those nested under an "errors"/"codes" key.
-func loadErrorCodes(path string) (map[string]bool, error) {
+// loadErrorCodes reads testdata/errors.json and returns each code's suite:
+// "" for the read suite (testdata/cases), "editcases" for the editing suite,
+// or "unit" for codes only unit tests can cover. The file is owned elsewhere
+// in the repo, so several plausible shapes are accepted: an array of code
+// strings, an array of objects with a "code" (or "name") field and an
+// optional "suite", an object keyed by code, or any of those nested under an
+// "errors"/"codes" key.
+func loadErrorCodes(path string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -268,7 +384,7 @@ func loadErrorCodes(path string) (map[string]bool, error) {
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
-	codes := map[string]bool{}
+	codes := map[string]string{}
 	if err := collectCodes(doc, codes); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
@@ -278,7 +394,7 @@ func loadErrorCodes(path string) (map[string]bool, error) {
 	return codes, nil
 }
 
-func collectCodes(doc any, out map[string]bool) error {
+func collectCodes(doc any, out map[string]string) error {
 	switch v := doc.(type) {
 	case []any:
 		for _, item := range v {
@@ -287,7 +403,7 @@ func collectCodes(doc any, out map[string]bool) error {
 				if !codeRe.MatchString(e) {
 					return fmt.Errorf("%q is not an error code (expected E_UPPER_SNAKE)", e)
 				}
-				out[e] = true
+				out[e] = ""
 			case map[string]any:
 				code, ok := stringField(e, "code", "name", "id")
 				if !ok {
@@ -296,7 +412,16 @@ func collectCodes(doc any, out map[string]bool) error {
 				if !codeRe.MatchString(code) {
 					return fmt.Errorf("%q is not an error code (expected E_UPPER_SNAKE)", code)
 				}
-				out[code] = true
+				suite, _ := stringField(e, "suite")
+				switch suite {
+				case "", "cases", "editcases", "unit":
+				default:
+					return fmt.Errorf("%s: unknown suite %q (want \"cases\", \"editcases\", or \"unit\")", code, suite)
+				}
+				if suite == "cases" {
+					suite = ""
+				}
+				out[code] = suite
 			default:
 				return fmt.Errorf("unexpected list entry of type %T", item)
 			}
@@ -312,7 +437,7 @@ func collectCodes(doc any, out map[string]bool) error {
 			if !codeRe.MatchString(key) {
 				return fmt.Errorf("key %q is not an error code (expected E_UPPER_SNAKE)", key)
 			}
-			out[key] = true
+			out[key] = ""
 		}
 		return nil
 	default:
@@ -331,7 +456,7 @@ func stringField(m map[string]any, keys ...string) (string, bool) {
 	return "", false
 }
 
-func sortedKeys(m map[string]bool) []string {
+func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

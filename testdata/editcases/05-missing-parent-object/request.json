@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/x/y/z",
+      "value": 5
+    }
+  ]
+}

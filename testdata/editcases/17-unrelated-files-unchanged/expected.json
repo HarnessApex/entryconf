@@ -1,0 +1,21 @@
+{
+  "tree": {
+    "notes": {
+      "title": "notes"
+    },
+    "data": {
+      "n": 2,
+      "s": "x"
+    },
+    "level": "warn"
+  },
+  "affected": [
+    "/data/n"
+  ],
+  "documents": {
+    "data.json": {
+      "n": 2,
+      "s": "x"
+    }
+  }
+}

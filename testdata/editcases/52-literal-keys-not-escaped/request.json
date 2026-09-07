@@ -1,0 +1,13 @@
+{
+  "edits": [
+    {
+      "document": "entrypoint.json",
+      "op": "set",
+      "pointer": "/m",
+      "value": {
+        "$k": "v",
+        "@k": "$v"
+      }
+    }
+  ]
+}

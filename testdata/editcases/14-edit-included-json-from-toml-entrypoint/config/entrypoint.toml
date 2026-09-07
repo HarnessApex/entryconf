@@ -1,0 +1,7 @@
+# Ephoros-style layout: the TOML entrypoint holds workspace settings and
+# grafts the user-editable JSON document. A settings UI edits ephoros.json;
+# this file is never rewritten.
+ephoros = "@file:ephoros.json"
+
+[workspace]
+name = "demo"

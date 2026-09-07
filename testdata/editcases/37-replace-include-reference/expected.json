@@ -1,0 +1,18 @@
+{
+  "tree": {
+    "inc": {
+      "a": 1
+    }
+  },
+  "affected": [
+    "/inc/a",
+    "/inc/v"
+  ],
+  "documents": {
+    "entrypoint.json": {
+      "inc": {
+        "a": 1
+      }
+    }
+  }
+}

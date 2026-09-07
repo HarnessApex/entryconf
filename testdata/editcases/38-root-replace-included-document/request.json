@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "document": "x.json",
+      "op": "set",
+      "pointer": "",
+      "value": "scalar"
+    }
+  ]
+}

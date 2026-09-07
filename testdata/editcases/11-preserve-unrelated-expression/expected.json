@@ -1,0 +1,15 @@
+{
+  "tree": {
+    "host": "db.local",
+    "port": 2
+  },
+  "affected": [
+    "/port"
+  ],
+  "documents": {
+    "entrypoint.json": {
+      "host": "${EC_HOST}",
+      "port": 2
+    }
+  }
+}

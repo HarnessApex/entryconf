@@ -1,0 +1,21 @@
+{
+  "tree": {
+    "a": {
+      "v": 2
+    },
+    "b": {
+      "inner": {
+        "v": 2
+      }
+    }
+  },
+  "affected": [
+    "/a/v",
+    "/b/inner/v"
+  ],
+  "documents": {
+    "shared.json": {
+      "v": 2
+    }
+  }
+}

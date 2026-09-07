@@ -1,0 +1,7 @@
+{
+  "app": "x",
+  "database": {
+    "host": "a",
+    "port": 1
+  }
+}
