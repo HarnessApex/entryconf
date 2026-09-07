@@ -76,7 +76,7 @@ conformant iff it passes every case. Implementations are intended to be thin.
 
 ## Status
 
-`v0.3.0` — spec and conformance suites are in place, and all four
+`v0.3.0-rc.1` (pre-release) — spec and conformance suites are in place, and all four
 implementations (Go, Python, TypeScript, Rust) pass every read case in
 [testdata/cases/](testdata/cases/) and every editing case in
 [testdata/editcases/](testdata/editcases/). `Load(dir)` is unchanged from

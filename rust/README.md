@@ -10,7 +10,7 @@ fixture suites in `../testdata/cases/` (reading) and `../testdata/editcases/`
 
 ```toml
 [dependencies]
-entryconf = "0.3"
+entryconf = "0.3.0-rc.1"
 ```
 
 Or, from inside this repository, as a path dependency:

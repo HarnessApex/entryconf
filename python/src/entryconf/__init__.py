@@ -69,5 +69,5 @@ __all__ = [
     "E_LOCKED",
     "E_WRITE",
 ]
-__version__ = "0.3.0"
+__version__ = "0.3.0rc1"
 SPEC_VERSION = "0.3.0"

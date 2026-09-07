@@ -1,6 +1,6 @@
 [package]
 name = "entryconf"
-version = "0.3.0"
+version = "0.3.0-rc.1"
 edition = "2021"
 description = "Rust implementation of the entryconf config-directory convention (spec 0.3.0): load, inspect provenance, and edit JSON source documents"
 license = "Apache-2.0"

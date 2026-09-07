@@ -82,5 +82,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: entryconf v${{ env.VERSION }}
+          # A tag with a pre-release suffix (spec/v0.3.0-rc.1) is published as
+          # a GitHub pre-release, so consumers pinning "latest" skip it.
+          prerelease: ${{ contains(env.VERSION, '-') }}
           generate_release_notes: true
           files: assets/*

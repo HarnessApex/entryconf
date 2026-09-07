@@ -6,7 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 While the spec is `0.x`, any release may change normative behavior.
 
-## [0.3.0] - 2026-09-07
+## [0.3.0-rc.1] - 2026-09-08
+
+**Pre-release.** The editing surface below is complete and verified on Linux
+across all four implementations; this release candidate exists to exercise
+it on other platforms and in the Ephoros integration before 0.3.0 is final.
+Package versions are `0.3.0rc1` (Python) and `0.3.0-rc.1` (npm, crate, Go
+tag); the spec text is 0.3.0.
 
 Adds a source-aware **editing** surface — `Open`, `Inspect`, `Plan`, `Commit` —
 to the spec and all four implementations. `Load(dir)` and every read fixture
@@ -182,6 +188,6 @@ and four implementations tracking them.
 - **Project chrome** — Apache-2.0 `LICENSE`, this changelog, and contributor
   guidance in `CLAUDE.md`.
 
-[0.3.0]: https://github.com/HarnessApex/entryconf/releases/tag/spec/v0.3.0
+[0.3.0-rc.1]: https://github.com/HarnessApex/entryconf/releases/tag/spec/v0.3.0-rc.1
 [0.2.0]: https://github.com/HarnessApex/entryconf/releases/tag/spec/v0.2.0
 [0.1.0]: https://github.com/HarnessApex/entryconf/releases/tag/spec/v0.1.0
