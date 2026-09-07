@@ -30,8 +30,12 @@ entryconf loads local configuration files at startup and is meant to fail
 loudly. Things we treat as security issues include: reading or writing files
 outside the config directory in a way the spec does not describe, an `@file:`
 path or include chain causing unbounded resource use, a crafted config file
-causing memory unsafety or arbitrary code execution in an implementation, and
-leaking variable values into places the spec does not put them.
+causing memory unsafety or arbitrary code execution in an implementation,
+leaking variable values into places the spec does not put them, and — for the
+editing surface (SPEC §10) — a commit writing a file the plan did not name,
+writing after a revision or variable check should have failed, materializing a
+resolved secret over a `${VAR}` reference, or leaving a file in a partial
+state.
 
 A *conformance* difference with no security impact — an implementation
 disagreeing with `SPEC.md` or with another implementation — is a normal bug.

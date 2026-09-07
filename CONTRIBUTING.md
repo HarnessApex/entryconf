@@ -7,13 +7,15 @@ never disagree about what `Load(dir)` means.
 
 ## The spec-first rule
 
-`SPEC.md` is normative. `testdata/cases/` operationally defines conformance: an
-implementation is correct iff it passes every case.
+`SPEC.md` is normative. `testdata/cases/` (reading, SPEC §8) and
+`testdata/editcases/` (editing, SPEC §11) operationally define conformance: an
+implementation is correct iff it passes every case in both.
 
 **Any behavior change ships in one PR:**
 
 1. the wording in `SPEC.md`,
-2. a fixture under `testdata/cases/` that pins the new behavior,
+2. a fixture under `testdata/cases/` or `testdata/editcases/` that pins the
+   new behavior,
 3. **all four implementations** updated to match.
 
 Do not land a behavior change in one implementation and "catch the others up
@@ -27,11 +29,14 @@ that only fixes some implementations will fail CI.
 
 ## Error codes are public contract
 
-The `E_*` codes in SPEC §7 are part of the API. Do **not** rename an existing
-code, reuse it for a different condition, or change which condition it covers
-without a spec change. New codes go into the SPEC §7 table *and*
-`testdata/errors.json`, with at least one failure fixture — `tools/lintcases`
-enforces that coupling.
+The `E_*` codes in SPEC §7 and §10.9 are part of the API. Do **not** rename an
+existing code, reuse it for a different condition, or change which condition
+it covers without a spec change. New codes go into the spec table *and*
+`testdata/errors.json`, with at least one failure fixture in the suite the
+entry's `"suite"` names (`cases` by default, or `editcases`) — `tools/lintcases`
+enforces that coupling. The one exemption is `"suite": "unit"`, for a code
+whose condition a fixture cannot carry (`E_LOCKED`, `E_WRITE`); each
+implementation must then cover it with a unit test.
 
 ## Bug reports: send a fixture
 
@@ -46,10 +51,15 @@ cases/<NN>-<kebab-name>/
   expected_error.txt      failure cases: the single expected E_* code
 ```
 
+An editing bug is reported the same way with the SPEC §11 shape — `config/`,
+`request.json` (`{"inspect": …}`, `{"documents": true}`, or `{"edits": […]}`
+with an optional `before_commit`), and `expected.json` or `expected_error.txt`
+— under `testdata/editcases/`.
+
 Trim `config/` to the smallest thing that still shows the problem. If the four
 implementations disagree, say which produced which result — the per-language
-dump commands (below) print a comparable tree or a bare `E_*` code, and
-`tools/crosscheck` diffs them for you.
+dump and editing commands (below) print a comparable tree or a bare `E_*`
+code, and `tools/crosscheck` diffs them for you.
 
 Use `.github/ISSUE_TEMPLATE/conformance-failure.md` for "an implementation is
 wrong" and `.github/ISSUE_TEMPLATE/spec-change.md` for "the spec is wrong or
@@ -60,8 +70,12 @@ silent".
 - Case directories are numbered and kebab-cased: `12-some-behavior/`. The
   numeric prefix must be unique across the suite.
 - Exactly one of `expected.json` or `expected_error.txt` per case, plus a
-  `config/` directory. `expected_error.txt` holds one code, listed in
-  `testdata/errors.json`.
+  `config/` directory (and, for an editing case, a `request.json`).
+  `expected_error.txt` holds one code, listed in `testdata/errors.json`.
+- Editing cases are run against a fresh copy of `config/`. Their
+  `expected.json` names the written document's parsed value; every other
+  file must come out byte-identical, so put comments and odd formatting in
+  the YAML/TOML/env files of an editing case on purpose.
 - Variable names use the `EC_` prefix (or another unlikely name) so real
   environment variables cannot leak in. Per the harness contract (SPEC §8,
   `testdata/README.md`), every variable a case mentions must be otherwise unset.
@@ -96,8 +110,10 @@ cd rust   && cargo test
 ```
 
 Cross-implementation differ — runs every implementation's dump command over
-every case and diffs the results against the fixture *and* against each other
-(stdlib Python only; needs all four toolchains available):
+every read case, and its `inspect`/`edit` command over every editing case (in
+a scratch copy), and diffs the results against the fixture *and* against each
+other — including the bytes each implementation wrote (stdlib Python only;
+needs all four toolchains available):
 
 ```sh
 python3 tools/crosscheck/crosscheck.py            # whole suite
@@ -118,6 +134,26 @@ cd ts     && node src/cli.ts <dir>
 cd rust   && cargo run --quiet --bin entryconf-dump -- <dir>
 ```
 
+The editing CLIs share one command shape and one output shape, so the
+crosscheck can diff them too. `inspect <dir> <pointer>` prints the SPEC §10.3
+origin object; `inspect <dir>` prints `{"dir", "documents"}`; `edit [-n] <dir>
+<request.json|->` prints the plan (`document`, `before`, `after`, `candidate`,
+`affected`, `grafts`, `revisions`, `variables`, `variables_revision`) plus
+`committed` and the new `revision` (`null` after `-n`). Exit codes are the
+dump convention's: 1 with the bare code for any `E_*` failure — load, edit,
+stale plan, lock — and 2 for anything else.
+
+```sh
+cd go     && go run ./cmd/entryconf inspect <dir> [<pointer>]
+             go run ./cmd/entryconf edit [-n] <dir> <request.json>
+             python -m entryconf inspect <dir> [<pointer>]
+             python -m entryconf edit [-n] <dir> <request.json>
+cd ts     && node src/cli.ts inspect <dir> [<pointer>]
+             node src/cli.ts edit [-n] <dir> <request.json>
+cd rust   && cargo run --quiet --bin entryconf-edit -- inspect <dir> [<pointer>]
+             cargo run --quiet --bin entryconf-edit -- edit [-n] <dir> <request.json>
+```
+
 CI (`.github/workflows/ci.yml`) runs the linter, all four suites, the
 crosscheck, and a packaging dry run on every push and pull request.
 
@@ -125,10 +161,14 @@ crosscheck, and a packaging dry run on every push and pull request.
 
 - Public API: a single `Load(dir)` in local idiomatic casing, returning the
   tree as the language's natural map type (SPEC §9), plus an error type
-  exposing the `E_*` code. Keep the surface minimal.
-- The test suite must be a harness that walks `../testdata/cases/` — never
-  hand-written per-case tests. Add unit tests only for what a fixture cannot
-  express (see *Fixture conventions*) and for the dump CLI's exit convention.
+  exposing the `E_*` code; and the editing surface of SPEC §10 — `Open`
+  returning a snapshot with `Inspect`, `Plan`, and `Commit`. Keep the surface
+  minimal.
+- The test suite must be a harness that walks `../testdata/cases/` and one
+  that walks `../testdata/editcases/` — never hand-written per-case tests. Add
+  unit tests only for what a fixture cannot express (see *Fixture
+  conventions*; for editing: lock contention, write failure, permissions,
+  symlinks, two cooperating writers) and for the CLI exit convention.
 - Use stock parsers per SPEC §2: YAML 1.2 core schema, TOML datetimes rendered
   as RFC 3339-style strings.
 - Add the implementation to `tools/crosscheck` and to CI.

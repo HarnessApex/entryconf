@@ -42,18 +42,45 @@ Environments share *structure* through `@file:` includes and vary through their
 own `.env` values — that's the layering story, in three levels anyone can
 recite: `process env > .env files > ${VAR:-default}`.
 
+## Editing (0.3.0)
+
+A settings UI or CLI can also *write* configuration through the same library,
+without losing track of where values come from (SPEC §10):
+
+```go
+snap, _ := entryconf.Open("envs/deploy")             // effective tree + every source document
+origin, _ := snap.Inspect("/log/level")              // -> entrypoint.toml, "/log/level", "${LOG_LEVEL:-info}", variables: LOG_LEVEL (default)
+plan, _ := snap.Plan([]entryconf.Edit{{             // one explicitly named JSON document, a batch of edits
+    Document: "db.json", Op: "set", Pointer: "/pool/max", Value: 20,
+}})
+// plan.Candidate is the tree a commit would produce — validate it however you like first
+receipt, err := plan.Commit(nil)                     // atomic, revision-checked, E_STALE_PLAN on conflict
+```
+
+The rules, in short: only **JSON** documents are writable (YAML and TOML are
+read as before but never rewritten, so their comments survive); an edit always
+names its document, and a JSON pointer within it; a **literal** value loads
+back exactly as given (`$` and leading `@` are escaped for you), while an
+**expression** is written verbatim; a plan is bound to the revisions of every
+file and variable it depends on and a commit refuses to write if any changed;
+one commit writes one file, atomically, under an advisory lock shared by every
+implementation. The written file is re-serialized in a normalized form (sorted
+keys, two-space indent). See [docs/EDITING.md](docs/EDITING.md) for the full
+API tour and the integration handoff.
+
 ## Cross-language by construction
 
 The normative document is [SPEC.md](SPEC.md). Correctness is defined by the
-language-neutral fixture suite in [testdata/](testdata/): an implementation is
-conformant iff it passes every case. Implementations are intended to be thin
-(a few hundred lines each).
+language-neutral fixture suites in [testdata/](testdata/): an implementation is
+conformant iff it passes every case. Implementations are intended to be thin.
 
 ## Status
 
-`v0.2.0` — spec and conformance suite are in place, and all four
-implementations (Go, Python, TypeScript, Rust) pass every case in
-[testdata/cases/](testdata/cases/).
+`v0.3.0` — spec and conformance suites are in place, and all four
+implementations (Go, Python, TypeScript, Rust) pass every read case in
+[testdata/cases/](testdata/cases/) and every editing case in
+[testdata/editcases/](testdata/editcases/). `Load(dir)` is unchanged from
+0.2.0; the editing surface is additive.
 
 ## License
 

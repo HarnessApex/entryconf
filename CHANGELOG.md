@@ -6,6 +6,82 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 While the spec is `0.x`, any release may change normative behavior.
 
+## [0.3.0] - 2026-09-07
+
+Adds a source-aware **editing** surface — `Open`, `Inspect`, `Plan`, `Commit` —
+to the spec and all four implementations. `Load(dir)` and every read fixture
+are unchanged; a program that never edits is unaffected.
+
+### Added
+
+- **Editing** (`SPEC.md` §10) — `Open(dir)` returns a snapshot: the effective
+  tree, every source document the load read (key, format, `sha256:` revision,
+  `writable`, and its grafts into the effective tree), and the process
+  environment as captured. `Inspect(pointer)` reports an effective value's
+  provenance: authoring document and source pointer, the authored value, the
+  `@file:` chain, and each `$` variable with the layer that supplies it
+  (`process`, `file`, `default`). `Plan(edits)` applies a batch of `set` /
+  `remove` edits (RFC 6901 pointers) to **one explicitly named JSON document**
+  in memory, evaluates the candidate with the full load semantics and the new
+  text substituted, and returns before/after text, the candidate tree, the
+  affected effective pointers, the grafts the change lands in, and the
+  revisions and variable fingerprint it depends on. `Commit(plan)` takes the
+  shared advisory lock (`.entryconf.lock`, exclusive-create, 30 s stale
+  breaking), rechecks every revision and the live variables, and atomically
+  replaces the one file (same-directory temp, fsync, permissions preserved,
+  rename; symlinks resolved so the link survives).
+- **Literal vs. expression writes** — literal values are escaped (`$`→`$$`,
+  leading `@`→`@@`, recursively, never keys) so they load back as themselves;
+  `expression` mode writes a string verbatim. Untouched expressions are carried
+  through; a resolved value is never written over a `${VAR}` reference.
+- **Editing scope made explicit** — only JSON is writable. YAML, TOML and
+  `*.env` are read exactly as before and an edit naming one is
+  `E_UNSUPPORTED_EDIT` with no file touched. One plan edits one document;
+  multi-document requests are rejected before writing. Normalized JSON output
+  (§10.8) is documented; unedited files stay byte-identical.
+- **Error codes** (§10.9) — `E_UNSUPPORTED_EDIT`, `E_EDIT`, `E_PATH`,
+  `E_STALE_PLAN`, `E_LOCKED`, `E_WRITE`. A candidate that fails to load reports
+  the load code, so conflicts, parse failures, and unsupported operations are
+  distinguishable. `testdata/errors.json` entries now carry a `"suite"` field
+  saying which suite covers the code (`editcases`, or `unit` for the two that
+  need concurrency or filesystem failure).
+- **Editing conformance suite** (`SPEC.md` §11, `testdata/editcases/`, 58
+  cases) — scalar/subtree set, remove vs null, invalid paths, literal `$`/`@`
+  round trips including nested containers and keys, expression writes and
+  preservation of unrelated expressions, editing an included JSON document
+  under JSON/YAML/TOML entrypoints (the TOML case is the Ephoros shape:
+  `ephoros = "@file:ephoros.json"`), shared-include impact at both grafts,
+  unrelated files unchanged, process-env and `.env` provenance, unsupported
+  YAML/TOML/env edits, candidate validation failures (`E_MISSING_VAR`,
+  `E_SUBSTITUTION`, `E_INCLUDE`, `E_PARSE`), stale document / other document /
+  variable / new-include revisions, and multi-document rejection. Cases run
+  against a copy of `config/`; harnesses assert untouched files are
+  byte-identical and nothing was added.
+- **Per-implementation unit tests** for what fixtures cannot carry: two
+  cooperating writers, lock contention and stale-lock breaking, permission
+  preservation, write failure cleanup, symlinked documents, plan purity, live
+  environment changes, serialization bytes.
+- **CLIs** — Go `entryconf inspect <dir> [ptr]` and `entryconf edit [-n]
+  <dir> <request>`; Python `python -m entryconf inspect|edit …`; TypeScript
+  `node src/cli.ts inspect|edit …`; Rust `entryconf-edit inspect|edit …`. All
+  share one output shape and the dump exit convention, so `tools/crosscheck`
+  diffs origins, candidates, affected pointers, and written bytes across
+  implementations.
+- **Tooling** — `tools/lintcases` validates `testdata/editcases/` (request
+  shapes, expectation files) and per-suite error-code coverage;
+  `tools/crosscheck` runs the editing suite through every implementation's
+  editing CLI in a scratch copy.
+- **Docs** — `docs/EDITING.md`: API tour, Ephoros-shaped walkthrough, exact Go
+  signatures, semantics, guarantee boundary, error handling.
+
+### Changed
+
+- Spec version bumped to **0.3.0**, along with every implementation's version
+  and README conformance line. `SPEC.md` §7 now points to §10.9; §9 notes the
+  additive editing API.
+- Rust: `ErrorCode` gained six variants; an exhaustive `match` over it needs
+  the new arms (the string form `Error::code()` is unaffected).
+
 ## [0.2.0] - 2026-08-29
 
 Bounds YAML alias expansion, pins down leading-zero integers, and unifies the
@@ -106,5 +182,6 @@ and four implementations tracking them.
 - **Project chrome** — Apache-2.0 `LICENSE`, this changelog, and contributor
   guidance in `CLAUDE.md`.
 
+[0.3.0]: https://github.com/HarnessApex/entryconf/releases/tag/spec/v0.3.0
 [0.2.0]: https://github.com/HarnessApex/entryconf/releases/tag/spec/v0.2.0
 [0.1.0]: https://github.com/HarnessApex/entryconf/releases/tag/spec/v0.1.0

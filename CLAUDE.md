@@ -7,8 +7,9 @@ are thin clients of both.
 
 ## Source of truth
 
-- `SPEC.md` is normative. `testdata/cases/` operationally defines conformance:
-  an implementation is correct iff it passes every case.
+- `SPEC.md` is normative. `testdata/cases/` (reading) and `testdata/editcases/`
+  (editing, SPEC §10–11) operationally define conformance: an implementation
+  is correct iff it passes every case in both.
 - Any behavior change MUST be made spec-first: update `SPEC.md`, add or update
   fixtures, then change implementations. Never let an implementation's
   behavior drift from the spec "temporarily".
@@ -18,11 +19,14 @@ are thin clients of both.
 ## Layout
 
 ```
-SPEC.md               normative spec (v0.1.0)
-testdata/cases/       conformance fixtures: config/ + expected.json
+SPEC.md               normative spec (v0.3.0)
+testdata/cases/       read fixtures: config/ + expected.json
                       or expected_error.txt (+ optional procenv.json)
-testdata/errors.json  the error codes (SPEC §7) the suite must cover
-go/                   Go implementation (+ cmd/entryconf, the dump CLI)
+testdata/editcases/   editing fixtures: config/ + request.json + expected.json
+                      or expected_error.txt (+ optional procenv.json)
+testdata/errors.json  the error codes (SPEC §7, §10.9) and which suite covers each
+docs/EDITING.md       editing API tour + integration handoff
+go/                   Go implementation (+ cmd/entryconf: dump, inspect, edit)
 python/               Python implementation
 ts/                   TypeScript implementation
 rust/                 Rust implementation
@@ -51,12 +55,23 @@ tools/crosscheck/     compares implementation output across languages
 - Substitution output is inert (never re-scanned for `$` or `@file:`).
 - Strict `$` handling: malformed forms are `E_SUBSTITUTION`, not literals.
   `${NAME:…}` other than `:-` is reserved for future extensions.
+- Editing (SPEC §10) is JSON-only and explicit: an edit names its document;
+  nothing chooses between a shared include and a reference for the caller;
+  YAML/TOML/env are never rewritten; a commit writes one file atomically under
+  the shared `.entryconf.lock` protocol and is `E_STALE_PLAN` if any dependency
+  changed. Literal strings are escaped so they load back as themselves.
+- Editing fixtures run against a *copy* of `config/`; untouched files must
+  stay byte-identical and no lock/temp file may remain. `E_LOCKED`/`E_WRITE`
+  are unit-tested per implementation (`"suite": "unit"` in `errors.json`).
 
 ## When adding a language implementation
 
 - Public API: a single `Load(dir)` in local idiomatic casing, returning the
   tree as the language's natural map type (SPEC §9). Keep the surface minimal.
-- The test suite must be a harness that walks `../testdata/cases/` — do not
-  hand-write per-case tests that could drift from the shared fixtures.
+- The test suite must be a harness that walks `../testdata/cases/` and one
+  that walks `../testdata/editcases/` — do not hand-write per-case tests that
+  could drift from the shared fixtures.
+- The editing CLI (`inspect <dir> [ptr]`, `edit [-n] <dir> <request>`) must
+  print the same JSON shapes as the others so `tools/crosscheck` can diff it.
 - Use stock parsers (JSON/YAML/TOML) per SPEC §2 restrictions: YAML 1.2 core
   schema, TOML datetimes → RFC 3339 strings.
