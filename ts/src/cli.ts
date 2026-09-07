@@ -1,58 +1,123 @@
 #!/usr/bin/env node
 /**
- * Dump entrypoint for cross-implementation checking:
+ * Command line for cross-implementation checking:
  *
- *   node src/cli.ts <config-dir>
+ *   node src/cli.ts <config-dir>                          dump the tree
+ *   node src/cli.ts inspect <config-dir> [<pointer>]      documents, or one origin
+ *   node src/cli.ts edit [-n|--dry-run] <config-dir> <request.json | ->
  *
- * Exit codes follow the repo-wide dump-CLI convention, so a harness can tell a
- * conformance result from a broken tool:
+ * Exit codes follow the repo-wide convention, so a harness can tell a verdict
+ * from a broken tool:
  *
- *   0  the tree is on stdout as JSON
- *   1  the load failed — the bare E_* code is the first line on stderr
+ *   0  success — JSON on stdout
+ *   1  an entryconf failure — the bare E_* code is the first line on stderr
  *   2  any other fault (usage, internal) — no E_* code is printed
  */
-import { EntryconfError, load } from "./index.ts";
+import { readFileSync } from "node:fs";
 
-const USAGE = "usage: node src/cli.ts <config-dir>\n";
+import { EntryconfError, load, open, type Edit } from "./index.ts";
+import { compareCodePoints } from "./jsonfmt.ts";
 
-const dir = process.argv[2];
-if (dir === undefined || process.argv.length > 3) {
-  process.stderr.write(USAGE);
-  process.exit(2);
-}
-// The tool takes exactly one positional argument and knows no options, so a
-// dash-led first argument is a usage fault, not a directory name: `--help`,
-// `-h`, `--`, and anything else starting with `-` must exit 2 (or 0 for the
-// help request) and never print an E_* code that a harness could read as a
-// conformance result. Without this, `--help` reaches load() and reports
-// E_NO_ENTRYPOINT for a directory the user never named.
-if (dir === "--help" || dir === "-h") {
-  process.stdout.write(USAGE);
-  process.exit(0);
-}
-if (dir.startsWith("-")) {
-  // Echoing the argument is redacted the same way an internal fault's detail
-  // is: a harness scans stderr for an E_* token, so `-E_PARSE` must not put
-  // one there.
-  const shown = dir.replace(/E_[A-Z][A-Z0-9_]*/g, "[code redacted]");
-  process.stderr.write(`unknown option: ${shown}\n${USAGE}`);
-  process.exit(2);
+const USAGE =
+  "usage: node src/cli.ts <config-dir>\n" +
+  "       node src/cli.ts inspect <config-dir> [<pointer>]\n" +
+  "       node src/cli.ts edit [-n|--dry-run] <config-dir> <request.json | ->\n";
+
+function redact(s: string): string {
+  return s.replace(/E_[A-Z][A-Z0-9_]*/g, "[code redacted]");
 }
 
+/** Object keys sorted recursively by code point so output is comparable. */
+function sorted(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(sorted);
+  if (v !== null && typeof v === "object") {
+    const plain = typeof (v as { toJSON?: unknown }).toJSON === "function"
+      ? (v as { toJSON: () => unknown }).toJSON()
+      : v;
+    if (plain !== v) return sorted(plain);
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(plain as object).sort(compareCodePoints)) {
+      Object.defineProperty(out, k, {
+        value: sorted((plain as Record<string, unknown>)[k]),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    return out;
+  }
+  return v;
+}
+
+function usage(code: number): never {
+  (code === 0 ? process.stdout : process.stderr).write(USAGE);
+  process.exit(code);
+}
+
+function run(args: string[]): unknown {
+  if (args.length === 1) {
+    const dir = args[0];
+    // The dump form takes exactly one positional argument and knows no
+    // options, so a dash-led argument is a usage fault, not a directory name.
+    if (dir === "--help" || dir === "-h") usage(0);
+    if (dir.startsWith("-")) {
+      process.stderr.write(`unknown option: ${redact(dir)}\n${USAGE}`);
+      process.exit(2);
+    }
+    return load(dir);
+  }
+  if (args[0] === "inspect" && (args.length === 2 || args.length === 3)) {
+    const snap = open(args[1]);
+    if (args.length === 3) return snap.inspect(args[2]);
+    return { dir: snap.dir, documents: snap.documents };
+  }
+  if (args[0] === "edit") {
+    let dryRun = false;
+    const rest: string[] = [];
+    for (const a of args.slice(1)) {
+      if (a === "-n" || a === "--dry-run") dryRun = true;
+      else rest.push(a);
+    }
+    if (rest.length !== 2) usage(2);
+    const [dir, source] = rest;
+    let text: string;
+    try {
+      text = readFileSync(source === "-" ? 0 : source, "utf8");
+    } catch (err) {
+      process.stderr.write(`cannot read request: ${redact((err as Error).message)}\n`);
+      process.exit(2);
+    }
+    let req: { edits?: Edit[] };
+    try {
+      req = JSON.parse(text);
+    } catch (err) {
+      process.stderr.write(`request is not JSON: ${redact((err as Error).message)}\n`);
+      process.exit(2);
+    }
+    const plan = open(dir).plan(req.edits ?? []);
+    const receipt = dryRun ? null : plan.commit();
+    return {
+      ...plan.toJSON(),
+      committed: receipt !== null,
+      revision: receipt ? receipt.revision : null,
+    };
+  }
+  return usage(2);
+}
+
+const argv = process.argv.slice(2);
+if (argv.length === 0) usage(2);
 try {
-  process.stdout.write(`${JSON.stringify(load(dir), null, 2)}\n`);
+  const result = run(argv);
+  process.stdout.write(`${JSON.stringify(sorted(result), null, 2)}\n`);
 } catch (err) {
   if (err instanceof EntryconfError) {
     process.stderr.write(`${err.code}\n`);
     process.exit(1);
   }
-  // Not a load failure but a fault in this tool (or an I/O failure writing
-  // stdout): exit 2 and print no E_* code, so it can never be read as a
-  // conformance result. Any code-shaped token in the detail is redacted for
-  // the same reason — harnesses scan stderr for the code, not just line one.
+  // A fault in this tool, not a verdict: exit 2 and print no E_* code, so it
+  // can never be read as a conformance result.
   const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
-  process.stderr.write(
-    `internal error: ${detail.replace(/E_[A-Z][A-Z0-9_]*/g, "[code redacted]")}\n`,
-  );
+  process.stderr.write(`internal error: ${redact(detail)}\n`);
   process.exit(2);
 }

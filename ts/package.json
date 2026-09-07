@@ -1,7 +1,7 @@
 {
   "name": "entryconf",
-  "version": "0.2.0",
-  "description": "Load a config directory (one entrypoint + *.env + @file: includes + $VAR interpolation) into a single tree. Implements the entryconf spec 0.2.0.",
+  "version": "0.3.0",
+  "description": "Load a config directory (one entrypoint + *.env + @file: includes + $VAR interpolation) into a single tree, and edit its JSON source documents. Implements the entryconf spec 0.3.0.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {

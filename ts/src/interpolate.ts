@@ -6,11 +6,16 @@ const NAME_START_RE = /[A-Za-z_]/;
 const NAME_CHAR_RE = /[A-Za-z0-9_]/;
 const JSON_NUMBER_RE = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/;
 
+/** Anything with a `get(name)` — a `Map` or a `Vars`. */
+export interface Namespace {
+  get(name: string): string | undefined;
+}
+
 /**
  * Interpolate `$` references across the assembled tree (SPEC §6). Object keys
  * are never interpolated.
  */
-export function interpolate(value: Value, vars: Map<string, string>): Value {
+export function interpolate(value: Value, vars: Namespace): Value {
   if (typeof value === "string") return interpolateString(value, vars);
   if (Array.isArray(value)) {
     return value.map((item) => interpolate(item, vars));
@@ -32,7 +37,7 @@ function badForm(source: string, detail: string): EntryconfError {
   );
 }
 
-function interpolateString(source: string, vars: Map<string, string>): Value {
+function interpolateString(source: string, vars: Namespace): Value {
   let out = "";
   let references = 0;
   let wholeValue = false;
