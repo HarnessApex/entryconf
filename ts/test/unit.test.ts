@@ -9,7 +9,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { after, test } from "node:test";
@@ -60,6 +60,74 @@ test("a config path that is a file, not a directory, is E_NO_ENTRYPOINT", () => 
   writeFileSync(file, "{}\n");
   assertCode("E_NO_ENTRYPOINT", () => load(file));
 });
+
+test(
+  "an unreadable entrypoint file is E_PARSE",
+  { skip: process.platform === "win32" || process.getuid?.() === 0 },
+  () => {
+    const dir = mkdtempSync(join(scratch, "unreadable-entrypoint-"));
+    const entrypoint = join(dir, "entrypoint.json");
+    writeFileSync(entrypoint, "{\"a\": 1}\n");
+    chmodSync(entrypoint, 0o000);
+    try {
+      try {
+        readFileSync(entrypoint);
+        return; // root or ACL ignores mode 000
+      } catch {
+        // expected: permission denied
+      }
+      assertCode("E_PARSE", () => load(dir));
+    } finally {
+      chmodSync(entrypoint, 0o644);
+    }
+  },
+);
+
+test(
+  "an unreadable *.env file is E_PARSE",
+  { skip: process.platform === "win32" || process.getuid?.() === 0 },
+  () => {
+    const dir = mkdtempSync(join(scratch, "unreadable-env-"));
+    writeFileSync(join(dir, "entrypoint.json"), "{\"a\": 1}\n");
+    const envFile = join(dir, "app.env");
+    writeFileSync(envFile, "VAR=val\n");
+    chmodSync(envFile, 0o000);
+    try {
+      try {
+        readFileSync(envFile);
+        return; // root or ACL ignores mode 000
+      } catch {
+        // expected: permission denied
+      }
+      assertCode("E_PARSE", () => load(dir));
+    } finally {
+      chmodSync(envFile, 0o644);
+    }
+  },
+);
+
+test(
+  "an unreadable @file: include target is E_INCLUDE",
+  { skip: process.platform === "win32" || process.getuid?.() === 0 },
+  () => {
+    const dir = mkdtempSync(join(scratch, "unreadable-include-"));
+    writeFileSync(join(dir, "entrypoint.json"), "{\"sub\": \"@file:sub.json\"}\n");
+    const sub = join(dir, "sub.json");
+    writeFileSync(sub, "{\"b\": 2}\n");
+    chmodSync(sub, 0o000);
+    try {
+      try {
+        readFileSync(sub);
+        return; // root or ACL ignores mode 000
+      } catch {
+        // expected: permission denied
+      }
+      assertCode("E_INCLUDE", () => load(dir));
+    } finally {
+      chmodSync(sub, 0o644);
+    }
+  },
+);
 
 test("the alias-expansion budget is the value SPEC §2 fixes", () => {
   assert.strictEqual(MAX_EXPANDED_NODES, 1_000_000);

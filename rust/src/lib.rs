@@ -274,4 +274,104 @@ mod tests {
         let err = load_with_env(&not_a_dir, &env).expect_err("a file cannot load");
         assert_eq!(err.kind(), ErrorCode::NoEntrypoint);
     }
+
+    #[cfg(unix)]
+    struct CleanUpGuard(std::path::PathBuf, std::path::PathBuf);
+
+    #[cfg(unix)]
+    impl Drop for CleanUpGuard {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&self.1, std::fs::Permissions::from_mode(0o644));
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[cfg(unix)]
+    fn scratch_dir(prefix: &str) -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(format!("target/unit-tests/{prefix}-{}-{n}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// SPEC §2: an entrypoint file that cannot be read is `E_PARSE`.
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_entrypoint_is_parse() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = scratch_dir("unreadable-entrypoint");
+        let entrypoint = dir.join("entrypoint.json");
+        fs::write(&entrypoint, r#"{"a": 1}"#).unwrap();
+        let _guard = CleanUpGuard(dir.clone(), entrypoint.clone());
+
+        fs::set_permissions(&entrypoint, fs::Permissions::from_mode(0o000)).unwrap();
+        if fs::read(&entrypoint).is_ok() {
+            // Root (or an ACL) ignores mode 000; the failure cannot be provoked.
+            return;
+        }
+
+        let env = BTreeMap::new();
+        let err = load_with_env(&dir, &env).expect_err("unreadable entrypoint must fail");
+        assert_eq!(err.kind(), ErrorCode::Parse);
+        assert_eq!(err.code(), "E_PARSE");
+    }
+
+    /// SPEC §2: an *.env file that cannot be read is `E_PARSE`.
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_env_file_is_parse() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = scratch_dir("unreadable-env");
+        let entrypoint = dir.join("entrypoint.json");
+        fs::write(&entrypoint, r#"{"a": 1}"#).unwrap();
+        let env_file = dir.join("app.env");
+        fs::write(&env_file, "VAR=val\n").unwrap();
+        let _guard = CleanUpGuard(dir.clone(), env_file.clone());
+
+        fs::set_permissions(&env_file, fs::Permissions::from_mode(0o000)).unwrap();
+        if fs::read(&env_file).is_ok() {
+            // Root (or an ACL) ignores mode 000; the failure cannot be provoked.
+            return;
+        }
+
+        let env = BTreeMap::new();
+        let err = load_with_env(&dir, &env).expect_err("unreadable env file must fail");
+        assert_eq!(err.kind(), ErrorCode::Parse);
+        assert_eq!(err.code(), "E_PARSE");
+    }
+
+    /// SPEC §5: an @file: target that cannot be read is `E_INCLUDE`.
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_include_target_is_include() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = scratch_dir("unreadable-include");
+        let entrypoint = dir.join("entrypoint.json");
+        fs::write(&entrypoint, r#"{"sub": "@file:sub.json"}"#).unwrap();
+        let sub = dir.join("sub.json");
+        fs::write(&sub, r#"{"b": 2}"#).unwrap();
+        let _guard = CleanUpGuard(dir.clone(), sub.clone());
+
+        fs::set_permissions(&sub, fs::Permissions::from_mode(0o000)).unwrap();
+        if fs::read(&sub).is_ok() {
+            // Root (or an ACL) ignores mode 000; the failure cannot be provoked.
+            return;
+        }
+
+        let env = BTreeMap::new();
+        let err = load_with_env(&dir, &env).expect_err("unreadable include target must fail");
+        assert_eq!(err.kind(), ErrorCode::Include);
+        assert_eq!(err.code(), "E_INCLUDE");
+    }
 }
