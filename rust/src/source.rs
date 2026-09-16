@@ -5,6 +5,7 @@
 //! against the snapshot's recorded bytes with the edited document replaced in
 //! memory, falling back to disk only for a file the snapshot never saw.
 
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fs;
@@ -192,21 +193,55 @@ pub(crate) fn include_target(target: &str, base_dir: &Path) -> PathBuf {
     lexical_clean(&joined)
 }
 
-/// SPEC §10.2's document key: the path relative to the config directory,
-/// slash-separated, or the absolute path when no relative form exists.
-pub(crate) fn document_key(dir: &Path, path: &Path) -> String {
-    let rel = relative_to(dir, path).unwrap_or_else(|| path.to_path_buf());
-    let mut key = String::new();
-    for (i, component) in rel.components().enumerate() {
-        if i > 0 {
-            key.push('/');
-        }
-        match component {
-            Component::RootDir => {}
-            other => key.push_str(&other.as_os_str().to_string_lossy()),
+/// A classified path component for joining SPEC §10.2 document keys,
+/// independent of std::path::Component.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum KeyComponent<'a> {
+    Prefix(Cow<'a, str>),
+    RootDir,
+    CurDir,
+    Normal(Cow<'a, str>),
+}
+
+impl<'a> From<Component<'a>> for KeyComponent<'a> {
+    fn from(c: Component<'a>) -> Self {
+        match c {
+            Component::Prefix(p) => KeyComponent::Prefix(p.as_os_str().to_string_lossy()),
+            Component::RootDir => KeyComponent::RootDir,
+            Component::CurDir => KeyComponent::CurDir,
+            Component::ParentDir => KeyComponent::Normal(Cow::Borrowed("..")),
+            Component::Normal(s) => KeyComponent::Normal(s.to_string_lossy()),
         }
     }
-    if rel.is_absolute() && !key.starts_with('/') && cfg!(not(windows)) {
+}
+
+pub(crate) fn join_key_components<'a, I>(components: I, is_absolute: bool) -> String
+where
+    I: IntoIterator<Item = KeyComponent<'a>>,
+{
+    let mut key = String::new();
+    let mut has_prefix = false;
+    for component in components {
+        match component {
+            KeyComponent::Prefix(p) => {
+                has_prefix = true;
+                key.push_str(&p);
+            }
+            KeyComponent::RootDir => {
+                if !key.ends_with('/') {
+                    key.push('/');
+                }
+            }
+            KeyComponent::CurDir => {}
+            KeyComponent::Normal(s) => {
+                if !key.is_empty() && !key.ends_with('/') {
+                    key.push('/');
+                }
+                key.push_str(&s);
+            }
+        }
+    }
+    if is_absolute && !has_prefix && !key.starts_with('/') && cfg!(not(windows)) {
         key.insert(0, '/');
     }
     if key.is_empty() {
@@ -214,6 +249,13 @@ pub(crate) fn document_key(dir: &Path, path: &Path) -> String {
     } else {
         key
     }
+}
+
+/// SPEC §10.2's document key: the path relative to the config directory,
+/// slash-separated, or the absolute path when no relative form exists.
+pub(crate) fn document_key(dir: &Path, path: &Path) -> String {
+    let rel = relative_to(dir, path).unwrap_or_else(|| path.to_path_buf());
+    join_key_components(rel.components().map(KeyComponent::from), rel.is_absolute())
 }
 
 /// A lexical relative path from `base` to `path` (both absolute and cleaned),
@@ -248,4 +290,96 @@ fn relative_to(base: &Path, path: &Path) -> Option<PathBuf> {
 
 fn component_is_root(c: &Component<'_>) -> bool {
     matches!(c, Component::RootDir | Component::Prefix(_))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn windows_absolute_path_components_do_not_produce_double_slash() {
+        let components = vec![
+            KeyComponent::Prefix(Cow::Borrowed("C:")),
+            KeyComponent::RootDir,
+            KeyComponent::Normal(Cow::Borrowed("root")),
+            KeyComponent::Normal(Cow::Borrowed("cfg.json")),
+        ];
+        let key = join_key_components(components, true);
+        assert_eq!(key, "C:/root/cfg.json");
+    }
+
+    #[test]
+    fn windows_drive_root_components() {
+        let components = vec![
+            KeyComponent::Prefix(Cow::Borrowed("C:")),
+            KeyComponent::RootDir,
+        ];
+        let key = join_key_components(components, true);
+        assert_eq!(key, "C:/");
+    }
+
+    #[test]
+    fn embedded_cur_dir_components_are_dropped() {
+        // SPEC §10.2 keys are lexically normalized: a CurDir segment must
+        // neither emit a '.' nor disturb the separator state.
+        let components = vec![
+            KeyComponent::RootDir,
+            KeyComponent::Normal(Cow::Borrowed("sub")),
+            KeyComponent::CurDir,
+            KeyComponent::Normal(Cow::Borrowed("file.json")),
+        ];
+        let key = join_key_components(components, true);
+        assert_eq!(key, "/sub/file.json");
+    }
+
+    #[test]
+    fn document_key_relative_and_absolute_unix() {
+        let dir = Path::new("/app/config");
+        assert_eq!(
+            document_key(dir, Path::new("/app/config/entrypoint.json")),
+            "entrypoint.json"
+        );
+        assert_eq!(
+            document_key(dir, Path::new("/app/config/sub/inc.json")),
+            "sub/inc.json"
+        );
+        assert_eq!(document_key(dir, Path::new("/app/config")), ".");
+        assert_eq!(
+            document_key(dir, Path::new("/app/other.json")),
+            "../other.json"
+        );
+        assert_eq!(
+            document_key(dir, Path::new("/etc/passwd")),
+            "../../etc/passwd"
+        );
+        assert_eq!(
+            document_key(Path::new("app/config"), Path::new("/etc/passwd")),
+            "/etc/passwd"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_document_key_absolute_different_drive() {
+        // Pins the two Windows std::path facts the platform-independent
+        // join_key_components tests above can only assume: a drive-letter
+        // absolute path parses as Prefix, RootDir, then Normal components,
+        // and relative_to finds no shared root across drives — so the key is
+        // produced by the absolute-path fallback rather than a `..` chain.
+        let path = Path::new(r"C:\root\cfg.json");
+        assert_eq!(
+            path.components()
+                .map(KeyComponent::from)
+                .collect::<Vec<_>>(),
+            vec![
+                KeyComponent::Prefix(Cow::Borrowed("C:")),
+                KeyComponent::RootDir,
+                KeyComponent::Normal(Cow::Borrowed("root")),
+                KeyComponent::Normal(Cow::Borrowed("cfg.json")),
+            ]
+        );
+        let dir = Path::new(r"D:\other");
+        assert_eq!(relative_to(dir, path), None);
+        assert_eq!(document_key(dir, path), "C:/root/cfg.json");
+    }
 }
