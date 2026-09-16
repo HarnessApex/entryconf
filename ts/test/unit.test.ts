@@ -218,3 +218,36 @@ test("dump CLI: an internal fault exits 2 and prints no E_* code", () => {
   assert.doesNotMatch(stderr, CODE_RE);
   assert.match(stderr, /internal error:/);
 });
+
+test("inspect CLI: dash-led directory arguments exit 2 and print no E_* code", () => {
+  const argSets = [
+    ["inspect", "--help"],
+    ["inspect", "-h"],
+    ["inspect", "-x"],
+    ["inspect", "-x", "/pointer"],
+  ];
+  for (const args of argSets) {
+    const run = runCli(args);
+    assert.strictEqual(run.status, 2, `args: ${JSON.stringify(args)}`);
+    assert.doesNotMatch(run.stderr, CODE_RE, `args: ${JSON.stringify(args)}`);
+    assert.doesNotMatch(run.stdout, CODE_RE, `args: ${JSON.stringify(args)}`);
+  }
+});
+
+test("edit CLI: unknown flags and dash-led directory arguments exit 2 and print no E_* code", () => {
+  const reqFile = join(scratch, "dummy-request.json");
+  writeFileSync(reqFile, JSON.stringify({ edits: [] }));
+  const argSets = [
+    ["edit", "-x", reqFile],
+    ["edit", "--help", reqFile],
+    ["edit", "-n", "-x", reqFile],
+    ["edit", "--unknown", join(casesDir, "01-basic", "config"), reqFile],
+    ["edit", "-", reqFile],
+  ];
+  for (const args of argSets) {
+    const run = runCli(args);
+    assert.strictEqual(run.status, 2, `args: ${JSON.stringify(args)}`);
+    assert.doesNotMatch(run.stderr, CODE_RE, `args: ${JSON.stringify(args)}`);
+    assert.doesNotMatch(run.stdout, CODE_RE, `args: ${JSON.stringify(args)}`);
+  }
+});

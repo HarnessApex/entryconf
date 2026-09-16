@@ -67,6 +67,7 @@ function run(args: string[]): unknown {
     return load(dir);
   }
   if (args[0] === "inspect" && (args.length === 2 || args.length === 3)) {
+    if (args[1].startsWith("-")) usage(2);
     const snap = open(args[1]);
     if (args.length === 3) return snap.inspect(args[2]);
     return { dir: snap.dir, documents: snap.documents };
@@ -76,9 +77,10 @@ function run(args: string[]): unknown {
     const rest: string[] = [];
     for (const a of args.slice(1)) {
       if (a === "-n" || a === "--dry-run") dryRun = true;
+      else if (a.startsWith("-") && a !== "-") usage(2);
       else rest.push(a);
     }
-    if (rest.length !== 2) usage(2);
+    if (rest.length !== 2 || rest[0].startsWith("-")) usage(2);
     const [dir, source] = rest;
     let text: string;
     try {
