@@ -17,7 +17,8 @@ For each SUCCESS case (a case with ``expected.json``):
   implementation against every other.
 
 For each FAILURE case (a case with ``expected_error.txt``): every dump MUST
-exit nonzero and name the expected ``E_*`` code on stderr.
+exit 1 with the bare expected ``E_*`` code on the first line of stderr
+and nothing on stdout.
 
 The EDITING suite (``testdata/editcases/``, SPEC §11) is checked the same way
 through each implementation's ``inspect`` / ``edit`` command, against a fresh
@@ -305,11 +306,14 @@ def check_failure(impl: Impl, case: Path, code: str, env: dict[str, str]) -> Res
         return Result(False, f"timed out after {TIMEOUT:g}s")
     except OSError as exc:
         return Result(False, f"could not run: {exc}")
-    if proc.returncode == 0:
-        return Result(False, f"exited 0; expected failure with {code}")
-    if code not in proc.stderr:
+    if proc.returncode != 1:
         first = (proc.stderr.strip().splitlines() or ["<empty stderr>"])[0]
-        return Result(False, f"stderr lacks {code} (got: {first})")
+        return Result(False, f"exit {proc.returncode}; expected 1 with {code} (stderr: {first})")
+    first = (proc.stderr.strip().splitlines() or [""])[0]
+    if first != code:
+        return Result(False, f"first stderr line {first!r}, expected {code}")
+    if proc.stdout.strip():
+        return Result(False, "wrote to stdout on failure")
     return Result(True)
 
 
