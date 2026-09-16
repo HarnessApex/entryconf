@@ -115,11 +115,10 @@ type Plan struct {
 	Variables         []string          `json:"variables"`
 	VariablesRevision string            `json:"variables_revision"`
 
-	dir      string
-	path     string            // absolute path of the edited document
-	paths    map[string]string // document key -> absolute path
-	envPaths []string          // absolute paths of the *.env documents
-	live     envSource
+	dir   string
+	path  string            // absolute path of the edited document
+	paths map[string]string // document key -> absolute path
+	live  envSource
 }
 
 // Receipt is what a successful Commit returns.
@@ -423,9 +422,6 @@ func (s *Snapshot) Plan(edits []Edit) (*Plan, error) {
 		k := documentKey(s.Dir, path)
 		p.Revisions[k] = revisionOf(d.data)
 		p.paths[k] = path
-		if d.format == "env" {
-			p.envPaths = append(p.envPaths, path)
-		}
 	}
 	// The edited document's own revision is what is on disk now, not the new
 	// text: Commit must find the file as the snapshot saw it.
