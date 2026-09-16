@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -211,6 +212,107 @@ func TestLoadMissingDirectory(t *testing.T) {
 		if ecErr.Code() != CodeNoEntrypoint {
 			t.Fatalf("Load(%q): expected %s, got %s (%v)", dir, CodeNoEntrypoint, ecErr.Code(), err)
 		}
+	}
+}
+
+// TestUnreadableEntrypointIsParse pins SPEC §2: an entrypoint that cannot be read is E_PARSE.
+func TestUnreadableEntrypointIsParse(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Getuid() == 0 {
+		t.Skip("needs POSIX permissions and a non-root user")
+	}
+	dir := t.TempDir()
+	entrypoint := filepath.Join(dir, "entrypoint.json")
+	if err := os.WriteFile(entrypoint, []byte(`{"a": 1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(entrypoint, 0o644)
+	if err := os.Chmod(entrypoint, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.ReadFile(entrypoint); err == nil {
+		t.Skip("root or ACL ignores mode 000")
+	}
+
+	_, err := Load(dir)
+	if err == nil {
+		t.Fatalf("Load(%q): expected %s, got no error", dir, CodeParse)
+	}
+	var ecErr *Error
+	if !errors.As(err, &ecErr) {
+		t.Fatalf("Load(%q): expected *Error, got %T: %v", dir, err, err)
+	}
+	if ecErr.Code() != CodeParse {
+		t.Fatalf("Load(%q): expected %s, got %s (%v)", dir, CodeParse, ecErr.Code(), err)
+	}
+}
+
+// TestUnreadableEnvFileIsParse pins SPEC §2: a *.env file that cannot be read is E_PARSE.
+func TestUnreadableEnvFileIsParse(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Getuid() == 0 {
+		t.Skip("needs POSIX permissions and a non-root user")
+	}
+	dir := t.TempDir()
+	entrypoint := filepath.Join(dir, "entrypoint.json")
+	if err := os.WriteFile(entrypoint, []byte(`{"a": 1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	envFile := filepath.Join(dir, "app.env")
+	if err := os.WriteFile(envFile, []byte("VAR=val\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(envFile, 0o644)
+	if err := os.Chmod(envFile, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.ReadFile(envFile); err == nil {
+		t.Skip("root or ACL ignores mode 000")
+	}
+
+	_, err := Load(dir)
+	if err == nil {
+		t.Fatalf("Load(%q): expected %s, got no error", dir, CodeParse)
+	}
+	var ecErr *Error
+	if !errors.As(err, &ecErr) {
+		t.Fatalf("Load(%q): expected *Error, got %T: %v", dir, err, err)
+	}
+	if ecErr.Code() != CodeParse {
+		t.Fatalf("Load(%q): expected %s, got %s (%v)", dir, CodeParse, ecErr.Code(), err)
+	}
+}
+
+// TestUnreadableIncludeTargetIsInclude pins SPEC §5: an unreadable @file: target is E_INCLUDE.
+func TestUnreadableIncludeTargetIsInclude(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Getuid() == 0 {
+		t.Skip("needs POSIX permissions and a non-root user")
+	}
+	dir := t.TempDir()
+	entrypoint := filepath.Join(dir, "entrypoint.json")
+	if err := os.WriteFile(entrypoint, []byte(`{"sub": "@file:sub.json"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sub := filepath.Join(dir, "sub.json")
+	if err := os.WriteFile(sub, []byte(`{"b": 2}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(sub, 0o644)
+	if err := os.Chmod(sub, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.ReadFile(sub); err == nil {
+		t.Skip("root or ACL ignores mode 000")
+	}
+
+	_, err := Load(dir)
+	if err == nil {
+		t.Fatalf("Load(%q): expected %s, got no error", dir, CodeInclude)
+	}
+	var ecErr *Error
+	if !errors.As(err, &ecErr) {
+		t.Fatalf("Load(%q): expected *Error, got %T: %v", dir, err, err)
+	}
+	if ecErr.Code() != CodeInclude {
+		t.Fatalf("Load(%q): expected %s, got %s (%v)", dir, CodeInclude, ecErr.Code(), err)
 	}
 }
 

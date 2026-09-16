@@ -165,6 +165,80 @@ def test_missing_config_dir_is_no_entrypoint(tmp_path: Path) -> None:
     assert excinfo.value.code == "E_NO_ENTRYPOINT"
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32" or (hasattr(os, "getuid") and os.getuid() == 0),
+    reason="needs POSIX permissions and a non-root user",
+)
+def test_unreadable_entrypoint_is_parse(tmp_path: Path) -> None:
+    """SPEC §2: an entrypoint file that cannot be read is E_PARSE."""
+    config = tmp_path / "config"
+    config.mkdir()
+    entrypoint = config / "entrypoint.json"
+    entrypoint.write_text('{"a": 1}', encoding="utf-8")
+    entrypoint.chmod(0o000)
+    try:
+        try:
+            entrypoint.read_bytes()
+            pytest.skip("root or ACL ignores mode 000")
+        except OSError:
+            pass
+        with pytest.raises(EntryconfError) as excinfo:
+            load(config)
+        assert excinfo.value.code == "E_PARSE"
+    finally:
+        entrypoint.chmod(0o644)
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or (hasattr(os, "getuid") and os.getuid() == 0),
+    reason="needs POSIX permissions and a non-root user",
+)
+def test_unreadable_env_file_is_parse(tmp_path: Path) -> None:
+    """SPEC §2: an *.env file that cannot be read is E_PARSE."""
+    config = tmp_path / "config"
+    config.mkdir()
+    (config / "entrypoint.json").write_text('{"a": 1}', encoding="utf-8")
+    env_file = config / "app.env"
+    env_file.write_text("VAR=val\n", encoding="utf-8")
+    env_file.chmod(0o000)
+    try:
+        try:
+            env_file.read_bytes()
+            pytest.skip("root or ACL ignores mode 000")
+        except OSError:
+            pass
+        with pytest.raises(EntryconfError) as excinfo:
+            load(config)
+        assert excinfo.value.code == "E_PARSE"
+    finally:
+        env_file.chmod(0o644)
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or (hasattr(os, "getuid") and os.getuid() == 0),
+    reason="needs POSIX permissions and a non-root user",
+)
+def test_unreadable_include_target_is_include(tmp_path: Path) -> None:
+    """SPEC §5: an @file: target that cannot be read is E_INCLUDE."""
+    config = tmp_path / "config"
+    config.mkdir()
+    (config / "entrypoint.json").write_text('{"sub": "@file:sub.json"}', encoding="utf-8")
+    sub = config / "sub.json"
+    sub.write_text('{"b": 2}', encoding="utf-8")
+    sub.chmod(0o000)
+    try:
+        try:
+            sub.read_bytes()
+            pytest.skip("root or ACL ignores mode 000")
+        except OSError:
+            pass
+        with pytest.raises(EntryconfError) as excinfo:
+            load(config)
+        assert excinfo.value.code == "E_INCLUDE"
+    finally:
+        sub.chmod(0o644)
+
+
 def test_dump_cli(tmp_path: Path) -> None:
     """The dump-CLI convention: 0 with JSON, 1 with a bare code, 2 otherwise."""
     config = tmp_path / "config"
