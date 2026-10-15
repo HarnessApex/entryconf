@@ -1,0 +1,3 @@
+primary: "@file:common.json"
+replica: "@file:common.json"
+name: db

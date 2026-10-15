@@ -1,0 +1,4 @@
+name = "app"
+shared = "@file:../shared.json"
+part = "@file:sub/part.json"
+host = "${EC_W_HOST}"

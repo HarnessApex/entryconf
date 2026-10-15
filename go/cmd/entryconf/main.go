@@ -10,13 +10,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	entryconf "github.com/HarnessApex/entryconf/go"
 )
 
 // specVersion is the version of SPEC.md this build implements.
-const specVersion = "0.3.0"
+const specVersion = "0.4.0"
 
 const usage = `entryconf — load a config directory into a single tree (entryconf spec ` + specVersion + `)
 
@@ -26,6 +27,10 @@ Usage:
                                            list the source documents when no pointer is given
   entryconf edit [flags] <dir> <request>   apply the edits in <request> (a JSON file, or - for
                                            stdin) to one source document; -n only previews
+  entryconf refresh <dir> <change>         open <dir>, apply <change> (SPEC §13's change.json:
+                                           files written or removed, variables set or
+                                           unset), refresh, and print the watch set and
+                                           what the refresh found
   entryconf help                           show this message
   entryconf version                        print the implemented spec version
 
@@ -77,6 +82,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runInspect(args[1:], stdout, stderr)
 	case "edit":
 		return runEdit(args[1:], stdout, stderr)
+	case "refresh":
+		return runRefresh(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)
 		return 0
@@ -280,4 +287,70 @@ func plainNumbers(v any) any {
 		return t
 	}
 	return v
+}
+
+// changeFile is SPEC §13's change.json: files written (or removed, null)
+// by key, and process variables set (or unset, null).
+type changeFile struct {
+	Files   map[string]*string `json:"files"`
+	Procenv map[string]*string `json:"procenv"`
+}
+
+// runRefresh is the watching suite's operation (SPEC §13) as a command, so
+// tools/crosscheck can compare it: open, take the watch set, apply the
+// change, refresh. A failed refresh is a result (its "error"), not a failure
+// of the command; a failed first open is.
+func runRefresh(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 2 {
+		fmt.Fprintf(stderr, "entryconf: refresh takes a config directory and a change file\n\n")
+		fmt.Fprint(stderr, usage)
+		return 2
+	}
+	data, err := os.ReadFile(args[1])
+	if err != nil {
+		fmt.Fprintf(stderr, "entryconf: cannot read change: %s\n", err)
+		return 2
+	}
+	var change changeFile
+	if err := json.Unmarshal(data, &change); err != nil {
+		fmt.Fprintf(stderr, "entryconf: change is not JSON: %s\n", err)
+		return 2
+	}
+	snap, err := entryconf.Open(args[0])
+	if err != nil {
+		return reportError(err, stderr)
+	}
+	watch := snap.WatchSet()
+	for key, text := range change.Files {
+		path := filepath.Join(snap.Dir, filepath.FromSlash(key))
+		if text == nil {
+			err = os.Remove(path)
+		} else if err = os.MkdirAll(filepath.Dir(path), 0o755); err == nil {
+			err = os.WriteFile(path, []byte(*text), 0o644)
+		}
+		if err != nil {
+			fmt.Fprintf(stderr, "entryconf: cannot apply change: %s\n", err)
+			return 2
+		}
+	}
+	for name, value := range change.Procenv {
+		if value == nil {
+			os.Unsetenv(name)
+		} else {
+			os.Setenv(name, *value)
+		}
+	}
+	r := entryconf.Refresh(snap)
+	out := map[string]any{"watch": watch, "stale": r.Stale, "changed": r.Changed, "documents": r.Documents}
+	if r.Err != nil {
+		var ecErr *entryconf.Error
+		if !errors.As(r.Err, &ecErr) {
+			fmt.Fprintf(stderr, "entryconf: internal error: %s\n", r.Err)
+			return 2
+		}
+		out["error"] = ecErr.Code()
+	} else {
+		out["tree"] = r.Snapshot.Tree
+	}
+	return writeJSON(out, false, stdout, stderr)
 }

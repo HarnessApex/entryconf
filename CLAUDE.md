@@ -19,7 +19,7 @@ are thin clients of both.
 ## Layout
 
 ```
-SPEC.md               normative spec (v0.3.0)
+SPEC.md               normative spec (v0.4.0)
 testdata/cases/       read fixtures: config/ + expected.json
                       or expected_error.txt (+ optional procenv.json)
 testdata/editcases/   editing fixtures: config/ + request.json + expected.json

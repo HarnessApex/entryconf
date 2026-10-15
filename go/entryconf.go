@@ -2,7 +2,7 @@
 // of *.env variable files, "@file:" includes and "$VAR" interpolation — into a
 // single tree.
 //
-// It implements the entryconf specification, version 0.3.0. See SPEC.md in the
+// It implements the entryconf specification, version 0.4.0. See SPEC.md in the
 // repository root; the fixture suite in testdata/cases defines conformance, and
 // testdata/editcases defines conformance of the editing surface (Open,
 // Snapshot.Inspect, Snapshot.Plan, Plan.Commit — SPEC §10).

@@ -1,0 +1,1 @@
+{"files": {"entrypoint.json": "{\"db\": {\"host\": \"db.remote\", \"port\": 5432}, \"name\": \"app\"}\n"}}

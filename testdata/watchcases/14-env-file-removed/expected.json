@@ -1,0 +1,7 @@
+{
+  "watch": {"directory": ".", "documents": ["entrypoint.json", "log.env"]},
+  "stale": true,
+  "tree": {"level": "info"},
+  "changed": ["/level"],
+  "documents": {"added": [], "removed": ["log.env"], "changed": []}
+}

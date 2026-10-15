@@ -1,6 +1,6 @@
 # entryconf Specification
 
-**Version 0.3.0**
+**Version 0.4.0**
 
 entryconf defines how a *config directory* is loaded into a single tree.
 Implementations in any language MUST produce identical results for identical
@@ -608,7 +608,7 @@ process environment as it is now, and reports:
 | `snapshot` | the new snapshot; absent when the open failed |
 | `error` | the open's error code (§7), when it failed; the old snapshot stays valid |
 | `changed` | the affected pointers (§10.6) between the old and the new effective tree; empty when the trees are equal or the open failed |
-| `documents` | `{"added", "removed", "changed"}`: document keys, each sorted by code point |
+| `documents` | `{"added", "removed", "changed"}`: document keys, each sorted by code point; empty lists when the open failed |
 
 A refresh that is not stale has an empty `changed` and empty `documents`
 lists, and its snapshot equals the old one in every field. A stale refresh
@@ -641,9 +641,13 @@ behavior, which every implementation that offers it MUST follow:
   burst. An editor's write-to-temp-and-rename is one change.
 - **No empty calls.** A refresh that is not stale calls nothing.
 - **The watch follows the snapshot.** Each time the current snapshot changes
-  the watcher watches the new snapshot's watch set. After a failed open it
-  also watches the directory of every path that open tried and failed to read
-  (an `@file:` target not yet created), so creating it is seen.
+  the watcher watches the new snapshot's watch set. After a refused change it
+  also watches the refused snapshot's watch set (a newly referenced include
+  whose value was refused), and after a failed open the directory of every
+  path that open tried and failed to read (an `@file:` target not yet
+  created), so fixing or creating it is seen. A watcher MAY watch more than
+  this (a whole directory, filtered by name): a refresh that is not stale
+  calls nothing.
 - **No polling** where the platform reports file changes; an implementation
   MAY poll only where it reports none, and MUST document that it does.
 - **Closing.** `Close()` stops the watch; no callback starts after it
@@ -671,6 +675,7 @@ Each directory under `testdata/watchcases/` is one watching case:
 ```
 watchcases/<name>/
   config/               the initial config directory
+  outside/              optional: files that sit beside the config directory
   procenv.json          optional: process env vars the harness MUST set
   change.json           what the harness changes between Open and Refresh
   expected.json         the expected watch set and refresh
@@ -686,7 +691,10 @@ being the new snapshot's effective tree (absent with `error`).
 
 Harness contract, in addition to §8's and §11's:
 
-- `Open` the copy, take its watch set, apply `change.json`, then `Refresh`.
+- Copy `config/` to `<work>/config` and the contents of `outside/`, if any,
+  into `<work>`, so an include named `../shared.json` is the case's
+  `outside/shared.json`; `Open` `<work>/config`.
+- Take the snapshot's watch set, apply `change.json`, then `Refresh`.
 - An empty `change.json` (`{}`) pins that an unchanged directory is not
   stale.
 - `Watch` itself is not exercised by fixtures (it depends on the platform's

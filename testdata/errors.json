@@ -60,5 +60,10 @@
     "code": "E_WRITE",
     "condition": "the temporary file could not be created or written, or the rename failed; the target is unchanged",
     "suite": "unit"
+  },
+  {
+    "code": "E_WATCH",
+    "condition": "the platform refused to watch a path of the watch set; the current snapshot is unchanged",
+    "suite": "unit"
   }
 ]

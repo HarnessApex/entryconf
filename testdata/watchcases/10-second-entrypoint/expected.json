@@ -1,0 +1,7 @@
+{
+  "watch": {"directory": ".", "documents": ["entrypoint.json"]},
+  "stale": true,
+  "error": "E_MULTIPLE_ENTRYPOINTS",
+  "changed": [],
+  "documents": {"added": [], "removed": [], "changed": []}
+}

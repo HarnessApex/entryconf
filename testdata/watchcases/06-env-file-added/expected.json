@@ -1,0 +1,7 @@
+{
+  "watch": {"directory": ".", "documents": ["app.env", "entrypoint.json"]},
+  "stale": true,
+  "tree": {"host": "db.local"},
+  "changed": [],
+  "documents": {"added": ["extra.env"], "removed": [], "changed": []}
+}

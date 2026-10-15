@@ -1,0 +1,7 @@
+{
+  "watch": {"directory": ".", "documents": ["entrypoint.json"]},
+  "stale": true,
+  "tree": {"name": "a", "port": 81},
+  "changed": ["/port"],
+  "documents": {"added": [], "removed": [], "changed": ["entrypoint.json"]}
+}

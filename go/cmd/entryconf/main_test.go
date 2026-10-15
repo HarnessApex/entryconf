@@ -129,8 +129,8 @@ func TestHelpAndVersion(t *testing.T) {
 	if !strings.Contains(out.String(), specVersion) {
 		t.Errorf("version output %q does not name spec %s", out.String(), specVersion)
 	}
-	if specVersion != "0.3.0" {
-		t.Errorf("specVersion is %q; this build implements entryconf spec 0.3.0", specVersion)
+	if specVersion != "0.4.0" {
+		t.Errorf("specVersion is %q; this build implements entryconf spec 0.4.0", specVersion)
 	}
 }
 
