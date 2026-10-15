@@ -1,0 +1,7 @@
+{
+  "watch": {"directory": ".", "documents": ["db.json", "entrypoint.json"]},
+  "stale": true,
+  "tree": {"db": {"host": "db.remote", "port": 5432}, "name": "app"},
+  "changed": ["/db/host"],
+  "documents": {"added": [], "removed": ["db.json"], "changed": ["entrypoint.json"]}
+}

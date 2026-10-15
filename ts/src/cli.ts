@@ -5,6 +5,7 @@
  *   node src/cli.ts <config-dir>                          dump the tree
  *   node src/cli.ts inspect <config-dir> [<pointer>]      documents, or one origin
  *   node src/cli.ts edit [-n|--dry-run] <config-dir> <request.json | ->
+ *   node src/cli.ts refresh <config-dir> <change.json>    SPEC §13: open, apply the change, refresh
  *
  * Exit codes follow the repo-wide convention, so a harness can tell a verdict
  * from a broken tool:
@@ -13,15 +14,18 @@
  *   1  an entryconf failure — the bare E_* code is the first line on stderr
  *   2  any other fault (usage, internal) — no E_* code is printed
  */
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 import { EntryconfError, load, open, type Edit } from "./index.ts";
 import { compareCodePoints } from "./jsonfmt.ts";
+import { refresh, refreshedJSON } from "./refresh.ts";
 
 const USAGE =
   "usage: node src/cli.ts <config-dir>\n" +
   "       node src/cli.ts inspect <config-dir> [<pointer>]\n" +
-  "       node src/cli.ts edit [-n|--dry-run] <config-dir> <request.json | ->\n";
+  "       node src/cli.ts edit [-n|--dry-run] <config-dir> <request.json | ->\n" +
+  "       node src/cli.ts refresh <config-dir> <change.json>\n";
 
 function redact(s: string): string {
   return s.replace(/E_[A-Z][A-Z0-9_]*/g, "[code redacted]");
@@ -103,6 +107,32 @@ function run(args: string[]): unknown {
       committed: receipt !== null,
       revision: receipt ? receipt.revision : null,
     };
+  }
+  if (args[0] === "refresh" && args.length === 3 && !args[1].startsWith("-")) {
+    let change: { files?: Record<string, string | null>; procenv?: Record<string, string | null> };
+    try {
+      change = JSON.parse(readFileSync(args[2], "utf8"));
+    } catch (err) {
+      process.stderr.write(`cannot read change: ${redact((err as Error).message)}\n`);
+      process.exit(2);
+    }
+    const snap = open(args[1]);
+    const watchSet = snap.watchSet();
+    // SPEC §13's change: files written or removed by key, variables set or
+    // unset. A failed refresh is a result ("error"), not a failed command.
+    for (const [key, text] of Object.entries(change.files ?? {})) {
+      const path = join(snap.dir, key);
+      if (text === null) unlinkSync(path);
+      else {
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, text);
+      }
+    }
+    for (const [name, value] of Object.entries(change.procenv ?? {})) {
+      if (value === null) delete process.env[name];
+      else process.env[name] = value;
+    }
+    return { watch: watchSet, ...refreshedJSON(refresh(snap)) };
   }
   return usage(2);
 }

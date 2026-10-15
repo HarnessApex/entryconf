@@ -4,6 +4,7 @@
 //!   entryconf-edit inspect [-v] <dir>               list the snapshot's documents
 //!   entryconf-edit inspect [-v] <dir> <pointer>     provenance of one effective value
 //!   entryconf-edit edit [-n|--dry-run] [-v] <dir> <request.json | ->
+//!   entryconf-edit refresh [-v] <dir> <change.json>  SPEC §13: open, apply the change, refresh
 //!
 //! `edit` reads `{"edits": [...]}` (SPEC §10.4) from the file, or stdin for
 //! `-`, plans, and commits unless `-n`. Output is JSON on stdout with keys
@@ -23,7 +24,7 @@ use serde_json::{json, Value};
 
 use entryconf::{CommitOptions, Edit, Error};
 
-const USAGE: &str = "usage: entryconf-edit inspect [-v] <dir> [<pointer>]\n       entryconf-edit edit [-n|--dry-run] [-v] <dir> <request.json | ->";
+const USAGE: &str = "usage: entryconf-edit inspect [-v] <dir> [<pointer>]\n       entryconf-edit edit [-n|--dry-run] [-v] <dir> <request.json | ->\n       entryconf-edit refresh [-v] <dir> <change.json>";
 
 const EXIT_FAULT: u8 = 2;
 
@@ -63,6 +64,7 @@ struct Command {
 enum Kind {
     Inspect { dir: String, pointer: Option<String> },
     Edit { dir: String, request: String },
+    Refresh { dir: String, change: String },
 }
 
 fn parse_args(argv: &[String]) -> Option<Command> {
@@ -92,6 +94,10 @@ fn parse_args(argv: &[String]) -> Option<Command> {
         ("edit", [dir, request]) => Kind::Edit {
             dir: dir.to_string(),
             request: request.to_string(),
+        },
+        ("refresh", [dir, change]) => Kind::Refresh {
+            dir: dir.to_string(),
+            change: change.to_string(),
         },
         _ => return None,
     };
@@ -153,6 +159,56 @@ fn run(cmd: Command) -> Result<Option<Value>, Error> {
             let obj = out.as_object_mut().expect("plan is an object");
             obj.insert("committed".to_string(), Value::Bool(committed));
             obj.insert("revision".to_string(), revision);
+            Ok(Some(out))
+        }
+        Kind::Refresh { dir, change } => {
+            let change: Value = match std::fs::read_to_string(&change).map(|t| serde_json::from_str(&t)) {
+                Ok(Ok(v)) => v,
+                Ok(Err(e)) => {
+                    eprintln!("change is not JSON: {e}");
+                    return Ok(None);
+                }
+                Err(e) => {
+                    eprintln!("cannot read {change}: {e}");
+                    return Ok(None);
+                }
+            };
+            let snap = entryconf::open(Path::new(&dir))?;
+            let watch = serde_json::to_value(snap.watch_set()).expect("serializable");
+            // SPEC §13's change: files written or removed by key, variables
+            // set or unset. A failed refresh is a result ("error"), not a
+            // failed command.
+            for (key, text) in change.get("files").and_then(Value::as_object).into_iter().flatten() {
+                let path = snap.dir.join(key);
+                let done = match text.as_str() {
+                    None => std::fs::remove_file(&path),
+                    Some(text) => std::fs::create_dir_all(path.parent().expect("a file has a parent"))
+                        .and_then(|()| std::fs::write(&path, text)),
+                };
+                if let Err(e) = done {
+                    eprintln!("cannot apply change to {key}: {e}");
+                    return Ok(None);
+                }
+            }
+            for (name, value) in change.get("procenv").and_then(Value::as_object).into_iter().flatten() {
+                // Single-threaded here: nothing else reads the environment.
+                match value.as_str() {
+                    None => std::env::remove_var(name),
+                    Some(v) => std::env::set_var(name, v),
+                }
+            }
+            let r = entryconf::refresh(&snap);
+            let mut out = json!({
+                "watch": watch,
+                "stale": r.stale,
+                "changed": r.changed,
+                "documents": r.documents,
+            });
+            match (&r.error, &r.snapshot) {
+                (Some(e), _) => out["error"] = json!(e.code()),
+                (None, Some(next)) => out["tree"] = next.tree.clone(),
+                (None, None) => out["tree"] = snap.tree.clone(),
+            }
             Ok(Some(out))
         }
     }

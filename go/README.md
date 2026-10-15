@@ -4,7 +4,7 @@ Go implementation of the entryconf convention: load a config directory — one
 entrypoint file, any number of `*.env` variable files, `@file:` includes and
 `$VAR` interpolation — into a single tree.
 
-Implements entryconf spec 0.3.0 (`../SPEC.md`). Conformance is defined by the
+Implements entryconf spec 0.4.0 (`../SPEC.md`). Conformance is defined by the
 shared fixture suites in `../testdata/cases` (reading) and
 `../testdata/editcases` (editing).
 
@@ -72,6 +72,23 @@ includes, stale plans, the lock protocol, atomic replacement — are in
 `../docs/EDITING.md` and SPEC §10.
 
 `Load` is unchanged from 0.2.0; the editing surface is additive.
+
+### Watching (spec 0.4.0, SPEC §12)
+
+```go
+snap.WatchSet()                    // {Directory: ".", Documents: [keys…]}
+r := entryconf.Refresh(snap)       // Stale, Snapshot, Err, Changed, Documents
+
+w, err := watch.Watch(dir, func(c watch.Change) error {
+    return validate(c.New)         // nil accepts; an error keeps c.Old current
+}, nil)                            // import "github.com/HarnessApex/entryconf/go/watch"
+defer w.Close()
+```
+
+`go/watch` is the only package that imports `github.com/fsnotify/fsnotify`; a
+program that imports only `entryconf` never builds it. The rules (one change
+per burst, callbacks never overlap, a failed open keeps the old snapshot,
+`E_WATCH`) are in `../docs/WATCHING.md` and SPEC §12.3.
 
 ## Command line
 

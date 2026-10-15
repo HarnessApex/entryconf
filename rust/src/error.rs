@@ -2,8 +2,9 @@
 
 use std::fmt;
 
-/// The normative entryconf error codes: the eight load codes of SPEC §7 and,
-/// since 0.3.0, the six editing codes of SPEC §10.9.
+/// The normative entryconf error codes: the eight load codes of SPEC §7,
+/// since 0.3.0 the six editing codes of SPEC §10.9, and since 0.4.0 the
+/// watching code of SPEC §12.4.
 ///
 /// Codes are part of the public contract; messages are not. New codes may be
 /// added in later versions, so a `match` on this enum should keep a wildcard
@@ -43,6 +44,9 @@ pub enum ErrorCode {
     /// `E_WRITE` — the replacement file could not be written or renamed; the
     /// target is unchanged.
     Write,
+    /// `E_WATCH` — the platform refused to watch a path of the watch set; the
+    /// current snapshot is unchanged.
+    Watch,
 }
 
 impl ErrorCode {
@@ -64,6 +68,7 @@ impl ErrorCode {
             ErrorCode::StalePlan => "E_STALE_PLAN",
             ErrorCode::Locked => "E_LOCKED",
             ErrorCode::Write => "E_WRITE",
+            ErrorCode::Watch => "E_WATCH",
         }
     }
 }

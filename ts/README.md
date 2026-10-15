@@ -1,6 +1,6 @@
 # entryconf (TypeScript)
 
-Implements the **entryconf spec 0.3.0** (`../SPEC.md`). Conformance is defined
+Implements the **entryconf spec 0.4.0** (`../SPEC.md`). Conformance is defined
 by the shared fixture suites in `../testdata/cases/` (reading) and
 `../testdata/editcases/` (editing, SPEC §10–11).
 
@@ -139,6 +139,19 @@ Semantics, briefly (the normative text is SPEC §10):
   document the link survives and its target is replaced.
 - Codes: `E_UNSUPPORTED_EDIT`, `E_EDIT`, `E_PATH`, `E_STALE_PLAN`, `E_LOCKED`,
   `E_WRITE`, plus any load code when the candidate fails to load.
+
+## Watching (SPEC §12)
+
+```ts
+const r = refresh(snap);             // { stale, snapshot?, error?, changed, documents }
+const w = watch(dir, async (c) => {  // throw or reject to refuse
+  validate(c.new);
+});
+await w.close();
+```
+
+Built on Node's `fs.watch`, with no dependency; it never polls. See
+`../docs/WATCHING.md`.
 
 ## Command line (cross-implementation checking)
 

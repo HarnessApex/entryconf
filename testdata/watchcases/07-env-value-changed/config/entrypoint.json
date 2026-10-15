@@ -1,0 +1,1 @@
+{"db": {"host": "${EC_W_HOST}", "port": 5432}, "name": "app"}

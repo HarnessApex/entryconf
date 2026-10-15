@@ -33,9 +33,18 @@ import {
   osSource,
   OverlaySource,
   Recorder,
+  TrackingSource,
   type DocRecord,
 } from "./source.ts";
 import { emptyObject, setKey, type Tree, type Value } from "./tree.ts";
+
+/** What can change the result of opening a snapshot's directory again (SPEC §12.1). */
+export interface WatchSet {
+  /** Always ".": the config directory. */
+  directory: ".";
+  /** The snapshot's document keys, sorted by code point. */
+  documents: string[];
+}
 
 /** One source file of a snapshot (SPEC §10.2). */
 export interface Document {
@@ -150,6 +159,11 @@ export class Snapshot {
   readonly #envNames: string[];
   readonly #captured: Record<string, string>;
   readonly #live: EnvLookup;
+  /**
+   * SPEC §10.6's fingerprint over the variables the load looked up; `refresh`
+   * compares it (SPEC §12.2).
+   */
+  readonly variablesRevision: string;
 
   /** @internal — use `open()`. */
   constructor(
@@ -160,6 +174,7 @@ export class Snapshot {
     envNames: string[],
     captured: Record<string, string>,
     live: EnvLookup,
+    variablesRevision: string,
   ) {
     this.dir = dir;
     this.tree = tree;
@@ -168,6 +183,16 @@ export class Snapshot {
     this.#envNames = envNames;
     this.#captured = captured;
     this.#live = live;
+    this.variablesRevision = variablesRevision;
+  }
+
+  /**
+   * The snapshot's watch set (SPEC §12.1): the directory, for entrypoints and
+   * `*.env` files appearing or going, and every document by key, sorted by
+   * code point. Reads nothing from disk.
+   */
+  watchSet(): WatchSet {
+    return { directory: ".", documents: Object.keys(this.documents).sort(compareCodePoints) };
   }
 
   #entrypoint(): DocRecord {
@@ -596,6 +621,19 @@ export function open(dir: string): Snapshot {
 
 /** `open` with the captured and live environments supplied (test seam). */
 export function openWith(dir: string, captured: Record<string, string>, live: EnvLookup): Snapshot {
+  return openTracked(dir, captured, live, new TrackingSource(osSource));
+}
+
+/**
+ * `open` through `src`, which records every path the load asked about: what a
+ * watcher needs after a failed open (SPEC §12.3).
+ */
+export function openTracked(
+  dir: string,
+  captured: Record<string, string>,
+  live: EnvLookup,
+  src: TrackingSource,
+): Snapshot {
   const abs = resolve(dir);
   let envNames: string[] = [];
   try {
@@ -604,8 +642,9 @@ export function openWith(dir: string, captured: Record<string, string>, live: En
     // the load itself reports an unreadable directory
   }
   const rec = new Recorder();
-  const l: Loader = { src: osSource, procEnv: mapLookup(captured), rec };
+  const l: Loader = { src, procEnv: mapLookup(captured), rec };
   const tree = loadTree(l, abs);
+  const names = [...l.vars!.used].sort(compareCodePoints);
 
   const entries: [string, Document][] = rec.order.map((path) => {
     const d = rec.docs.get(path)!;
@@ -628,7 +667,16 @@ export function openWith(dir: string, captured: Record<string, string>, live: En
       },
     ];
   });
-  return new Snapshot(abs, tree, sortedRecord(entries), rec.docs, envNames, captured, live);
+  return new Snapshot(
+    abs,
+    tree,
+    sortedRecord(entries),
+    rec.docs,
+    envNames,
+    captured,
+    live,
+    variablesRevision(names, l.vars!),
+  );
 }
 
 // parseDocument is re-exported for the CLI's request parsing.

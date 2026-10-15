@@ -1,0 +1,7 @@
+{
+  "watch": {"directory": ".", "documents": ["../shared.json", "app.env", "entrypoint.toml", "sub/part.json"]},
+  "stale": false,
+  "tree": {"host": "db.local", "name": "app", "part": {"level": 1}, "shared": {"team": "core"}},
+  "changed": [],
+  "documents": {"added": [], "removed": [], "changed": []}
+}

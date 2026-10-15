@@ -1,0 +1,7 @@
+{
+  "watch": {"directory": ".", "documents": ["db.json", "entrypoint.json"]},
+  "stale": true,
+  "error": "E_INCLUDE",
+  "changed": [],
+  "documents": {"added": [], "removed": [], "changed": []}
+}

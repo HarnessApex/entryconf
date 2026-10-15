@@ -1,0 +1,7 @@
+{
+  "watch": {"directory": ".", "documents": ["entrypoint.json"]},
+  "stale": true,
+  "tree": {"mode": "prod", "region": "us"},
+  "changed": ["/mode", "/region"],
+  "documents": {"added": [], "removed": [], "changed": []}
+}

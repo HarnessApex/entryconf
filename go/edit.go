@@ -30,6 +30,9 @@ type Snapshot struct {
 	envNames []string
 	captured map[string]string // process environment at open time
 	live     envSource         // the live process environment, for Commit
+	// varsRevision is SPEC §10.6's fingerprint over the variables the load
+	// looked up; Refresh compares it (SPEC §12.2).
+	varsRevision string
 }
 
 // Document describes one source file of a snapshot (SPEC §10.2).
@@ -140,38 +143,57 @@ type CommitOptions struct {
 // plans resolve variables against that capture, and Commit fails with
 // E_STALE_PLAN if a variable the candidate depends on has since changed.
 func Open(dir string) (*Snapshot, error) {
+	return open(dir, captureEnv(), os.LookupEnv)
+}
+
+// captureEnv copies the process environment as it is now.
+func captureEnv() map[string]string {
 	captured := map[string]string{}
 	for _, kv := range os.Environ() {
 		if i := strings.IndexByte(kv, '='); i > 0 {
 			captured[kv[:i]] = kv[i+1:]
 		}
 	}
-	return open(dir, captured, os.LookupEnv)
+	return captured
 }
 
 // open is the seam the editing harness uses: captured is the environment as
 // of the snapshot, live is what Commit consults when rechecking.
 func open(dir string, captured map[string]string, live envSource) (*Snapshot, error) {
+	s, _, err := openTracked(dir, captured, live)
+	return s, err
+}
+
+// openTracked is open that also reports every path the load tried to read,
+// which is what a watcher needs after a failed open (SPEC §12.3).
+func openTracked(dir string, captured map[string]string, live envSource) (*Snapshot, []string, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, wrapf(CodeNoEntrypoint, err, "cannot resolve %q", dir)
+		return nil, nil, wrapf(CodeNoEntrypoint, err, "cannot resolve %q", dir)
 	}
 	envNames, _ := osSource{}.envFileNames(abs) // a failure surfaces from the load itself
 	sort.Strings(envNames)
 	rec := newRecorder()
-	l := &loader{src: osSource{}, procEnv: mapEnv(captured), rec: rec}
+	src := &trackingSource{fileSource: osSource{}, seen: map[string]bool{}}
+	l := &loader{src: src, procEnv: mapEnv(captured), rec: rec}
 	tree, err := l.loadTree(abs)
 	if err != nil {
-		return nil, asError(err)
+		return nil, src.paths(), asError(err)
 	}
+	names := make([]string, 0, len(l.vars.used))
+	for name := range l.vars.used {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 	s := &Snapshot{
-		Dir:       abs,
-		Tree:      tree,
-		Documents: map[string]*Document{},
-		byPath:    rec.docs,
-		envNames:  envNames,
-		captured:  captured,
-		live:      live,
+		Dir:          abs,
+		Tree:         tree,
+		Documents:    map[string]*Document{},
+		byPath:       rec.docs,
+		envNames:     envNames,
+		captured:     captured,
+		live:         live,
+		varsRevision: variablesRevision(names, l.vars),
 	}
 	for _, path := range rec.order {
 		d := rec.docs[path]
@@ -195,7 +217,7 @@ func open(dir string, captured map[string]string, live envSource) (*Snapshot, er
 			Grafts:   grafts,
 		}
 	}
-	return s, nil
+	return s, src.paths(), nil
 }
 
 func mapEnv(m map[string]string) envSource {

@@ -21,6 +21,9 @@ const (
 	CodeStalePlan       = "E_STALE_PLAN"
 	CodeLocked          = "E_LOCKED"
 	CodeWrite           = "E_WRITE"
+
+	// Watching code (SPEC §12.4), added in 0.4.0.
+	CodeWatch = "E_WATCH"
 )
 
 // Error is the only error type returned by Load, Open, and the editing
@@ -47,6 +50,16 @@ func (e *Error) Unwrap() error { return e.err }
 
 func errf(code, format string, args ...any) *Error {
 	return &Error{code: code, msg: fmt.Sprintf(format, args...)}
+}
+
+// NewError makes an *Error with one of the codes above. It is for packages
+// that extend this one (go/watch reports E_WATCH with it); a loader or editor
+// never needs it.
+func NewError(code string, cause error, format string, args ...any) *Error {
+	if cause == nil {
+		return errf(code, format, args...)
+	}
+	return wrapf(code, cause, format, args...)
 }
 
 func wrapf(code string, cause error, format string, args ...any) *Error {

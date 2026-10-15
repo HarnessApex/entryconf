@@ -1,8 +1,8 @@
 [package]
 name = "entryconf"
-version = "0.3.0-rc.1"
+version = "0.4.0-rc.1"
 edition = "2021"
-description = "Rust implementation of the entryconf config-directory convention (spec 0.3.0): load, inspect provenance, and edit JSON source documents"
+description = "Rust implementation of the entryconf config-directory convention (spec 0.4.0): load, inspect provenance, edit JSON source documents, and watch for changes"
 license = "Apache-2.0"
 repository = "https://github.com/entryconf/entryconf"
 readme = "README.md"
@@ -19,6 +19,12 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 toml = "1"
+notify = { version = "8", optional = true, default-features = false, features = ["macos_fsevent"] }
+
+[features]
+# Watch (SPEC §12.3) on the platform's file events; a program that only loads
+# or edits takes no dependency for it.
+watch = ["dep:notify"]
 
 [dev-dependencies]
 libtest-mimic = "0.8"
@@ -37,4 +43,8 @@ harness = false
 
 [[test]]
 name = "editcases"
+harness = false
+
+[[test]]
+name = "watchcases"
 harness = false

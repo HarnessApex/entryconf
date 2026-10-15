@@ -18,12 +18,12 @@ use crate::lock;
 use crate::pointer;
 use crate::source::{
     document_key, include_target, lexical_clean, DocRecord, FileSource, OsSource, OverlaySource,
-    Recorder,
+    Recorder, TrackingSource,
 };
 use crate::{Loader, ENTRYPOINTS};
 
 /// The live process environment, consulted when a plan is committed.
-type LiveEnv = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
+pub(crate) type LiveEnv = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
 
 /// A source document's format (SPEC §10.2). Only [`Format::Json`] is writable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -288,6 +288,10 @@ pub struct Snapshot {
     captured: BTreeMap<String, String>,
     #[serde(skip)]
     live: LiveEnv,
+    /// SPEC §10.6's fingerprint over the variables the load looked up;
+    /// [`crate::refresh`] compares it (SPEC §12.2).
+    #[serde(skip)]
+    pub(crate) variables_revision: String,
 }
 
 /// A prepared, validated change to one document (SPEC §10.6). Nothing has been
@@ -370,6 +374,17 @@ pub fn open_with_env(
     captured: &BTreeMap<String, String>,
     live: impl Fn(&str) -> Option<String> + Send + Sync + 'static,
 ) -> Result<Snapshot, Error> {
+    open_tracked(dir, captured, Arc::new(live), &TrackingSource::new(&OsSource))
+}
+
+/// `open` through `src`, which records every path the load asked about: what
+/// a watcher needs after a failed open (SPEC §12.3).
+pub(crate) fn open_tracked(
+    dir: &Path,
+    captured: &BTreeMap<String, String>,
+    live: LiveEnv,
+    src: &TrackingSource<'_>,
+) -> Result<Snapshot, Error> {
     let abs = if dir.is_absolute() {
         lexical_clean(dir)
     } else {
@@ -388,11 +403,11 @@ pub fn open_with_env(
     let rec = Recorder::default();
     let lookup = |name: &str| captured.get(name).cloned();
     let loader = Loader {
-        src: &OsSource,
+        src,
         process: &lookup,
         rec: Some(&rec),
     };
-    let (tree, _) = loader.load_tree(&abs)?;
+    let (tree, used) = loader.load_tree(&abs)?;
     let (order, by_path) = rec.into_docs();
 
     let mut documents = BTreeMap::new();
@@ -411,15 +426,23 @@ pub fn open_with_env(
             },
         );
     }
-    Ok(Snapshot {
+    let mut snapshot = Snapshot {
         dir: abs,
         tree,
         documents,
         by_path,
         env_names,
         captured: captured.clone(),
-        live: Arc::new(live),
-    })
+        live,
+        variables_revision: String::new(),
+    };
+    // The fingerprint is over the bytes the load read, not the disk now.
+    let overlay = snapshot.source(BTreeMap::new());
+    let files = envfile::load_dir(&snapshot.dir, &overlay, |_, _| {})?;
+    let vars = Vars::new(&lookup, files);
+    let variables: Vec<String> = used.into_iter().collect::<BTreeSet<_>>().into_iter().collect();
+    snapshot.variables_revision = variables_revision(&variables, &vars);
+    Ok(snapshot)
 }
 
 /// The resolver records references by path; the API speaks in keys.

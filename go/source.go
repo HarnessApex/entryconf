@@ -44,6 +44,32 @@ func (osSource) envFileNames(dir string) ([]string, error) {
 	return names, nil
 }
 
+// trackingSource records every path a load asks about, read or not, so a
+// failed open can say which files it depended on (SPEC §12.3).
+type trackingSource struct {
+	fileSource
+	seen map[string]bool
+}
+
+func (t *trackingSource) readFile(path string) ([]byte, error) {
+	t.seen[path] = true
+	return t.fileSource.readFile(path)
+}
+
+func (t *trackingSource) isFile(path string) bool {
+	t.seen[path] = true
+	return t.fileSource.isFile(path)
+}
+
+func (t *trackingSource) paths() []string {
+	out := make([]string, 0, len(t.seen))
+	for p := range t.seen {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // overlaySource serves recorded bytes first and disk second. envNames is the
 // *.env listing the snapshot saw, so a candidate is evaluated against exactly
 // the variable files the snapshot loaded.

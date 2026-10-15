@@ -22,6 +22,9 @@ E_STALE_PLAN = "E_STALE_PLAN"
 E_LOCKED = "E_LOCKED"
 E_WRITE = "E_WRITE"
 
+# Watching code (SPEC §12.4), added in 0.4.0.
+E_WATCH = "E_WATCH"
+
 
 class EntryconfError(Exception):
     """A load-time failure. ``code`` is one of the ``E_*`` codes in SPEC §7."""

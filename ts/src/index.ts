@@ -21,10 +21,13 @@ export {
   type EditMode,
   type Receipt,
   type CommitOptions,
+  type WatchSet,
 } from "./edit.ts";
+export { refresh, type Refreshed, type DocumentChanges } from "./refresh.ts";
+export { watch, Watcher, DEFAULT_SETTLE_MS, type Change, type Callback, type WatchOptions } from "./watch.ts";
 
 /**
- * Load a config directory into a single tree (entryconf spec 0.3.0).
+ * Load a config directory into a single tree (entryconf spec 0.4.0).
  *
  * Locates the entrypoint (§3), builds the variable namespace from the
  * directory's `*.env` files and the process environment (§4), resolves every

@@ -1,7 +1,7 @@
 """entryconf — load a config directory into a single tree, and edit its
 JSON source documents.
 
-Implements the entryconf specification, version 0.3.0.
+Implements the entryconf specification, version 0.4.0.
 
     >>> import entryconf
     >>> cfg = entryconf.load("envs/deploy")     # doctest: +SKIP
@@ -22,6 +22,7 @@ from ._edit import (
     Variable,
     open,
 )
+from ._refresh import DocumentChanges, Refreshed, refresh
 from ._errors import (
     E_EDIT,
     E_ENV_CONFLICT,
@@ -36,6 +37,7 @@ from ._errors import (
     E_STALE_PLAN,
     E_SUBSTITUTION,
     E_UNSUPPORTED_EDIT,
+    E_WATCH,
     E_WRITE,
     EntryconfError,
 )
@@ -44,6 +46,9 @@ from ._loader import load
 __all__ = [
     "load",
     "open",
+    "refresh",
+    "Refreshed",
+    "DocumentChanges",
     "EntryconfError",
     "Snapshot",
     "Document",
@@ -68,6 +73,7 @@ __all__ = [
     "E_STALE_PLAN",
     "E_LOCKED",
     "E_WRITE",
+    "E_WATCH",
 ]
-__version__ = "0.3.0rc1"
-SPEC_VERSION = "0.3.0"
+__version__ = "0.4.0rc1"
+SPEC_VERSION = "0.4.0"

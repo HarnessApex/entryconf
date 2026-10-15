@@ -1,0 +1,7 @@
+{
+  "watch": {"directory": ".", "documents": ["common.json", "entrypoint.yaml"]},
+  "stale": true,
+  "tree": {"name": "db", "primary": {"pool": 8, "timeout": 30}, "replica": {"pool": 8, "timeout": 30}},
+  "changed": ["/primary/pool", "/replica/pool"],
+  "documents": {"added": [], "removed": [], "changed": ["common.json"]}
+}

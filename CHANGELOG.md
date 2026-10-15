@@ -6,6 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 While the spec is `0.x`, any release may change normative behavior.
 
+## [0.4.0-rc.1] - 2026-10-15
+
+**Pre-release.** Watching is complete and verified on Linux across all four
+implementations; this release candidate exists to exercise it in emphar's
+host (settings applied without a restart) before 0.4.0 is final. Package
+versions are `0.4.0rc1` (Python) and `0.4.0-rc.1` (npm, crate, Go tag); the
+spec text is 0.4.0.
+
+Adds **watching** to the spec and all four implementations. `Load(dir)`,
+reading and editing are unchanged; a program that never watches takes no new
+dependency.
+
+### Added
+
+- **Watching** (`SPEC.md` §12) — a snapshot's **watch set** (the directory and
+  every document by key); **`Refresh(snapshot)`**: whether the directory is
+  stale since it was opened (documents, revisions, the variables
+  fingerprint), the new snapshot or the open's error, the affected pointers
+  and the document keys added, removed and changed; **`Watch(dir, callback,
+  options)`**: a current snapshot, a callback that accepts or refuses each
+  change, one callback at a time, a `settle` window (100 ms) so a burst or a
+  temp-and-rename is one change, no call when nothing is stale, the watch
+  following the snapshot (and a refused or failed one's paths), no polling,
+  `Close` waiting for a running callback.
+- **`E_WATCH`** (§12.4): the platform refused to watch a path; unit-tested.
+- **`testdata/watchcases/`** (§13): 14 cases, with `outside/` beside the
+  config directory for an include outside it.
+- Go: `Snapshot.WatchSet`, `Refresh`, and the package `go/watch` on
+  `github.com/fsnotify/fsnotify` v1.9.0 (go 1.22 kept).
+- Python: `Snapshot.watch_set`, `refresh`, and `entryconf.watch` behind the
+  extra `entryconf[watch]` (watchdog).
+- TypeScript: `Snapshot.watchSet`, `refresh`, and `watch` on `fs.watch`.
+- Rust: `Snapshot::watch_set`, `refresh`, and `watch::watch` behind the cargo
+  feature `watch` (notify 8).
+- Every CLI: `refresh <dir> <change.json>`, which `tools/crosscheck` compares;
+  `tools/lintcases` validates the watching suite.
+
+### Changed
+
+- Rust: a missing `@file:` target is now asked of the file source before it
+  is canonicalized (still `E_INCLUDE`), so a failed open reports the path it
+  tried.
+
 ## [0.3.0-rc.1] - 2026-09-08
 
 **Pre-release.** The editing surface below is complete and verified on Linux

@@ -68,6 +68,25 @@ implementation. The written file is re-serialized in a normalized form (sorted
 keys, two-space indent). See [docs/EDITING.md](docs/EDITING.md) for the full
 API tour and the integration handoff.
 
+## Watching (0.4.0)
+
+A long-running program can take a change without a restart (SPEC §12):
+
+```go
+w, _ := watch.Watch("envs/deploy", func(c watch.Change) error {
+    // c.Old, c.New, c.Changed (effective pointers), c.Documents (added/removed/changed), c.Err
+    return validate(c.New) // nil accepts: c.New becomes current; an error keeps c.Old
+}, nil)
+defer w.Close()
+```
+
+`Refresh(snapshot)` says whether a directory changed since it was opened and
+what changed; `Watch` calls back once per change on the platform's file
+events (a burst or an editor's rename is one call; nothing stale, nothing
+called; callbacks never overlap). The file-event library is a separate
+package or optional feature, so a program that only loads takes none. See
+[docs/WATCHING.md](docs/WATCHING.md).
+
 ## Cross-language by construction
 
 The normative document is [SPEC.md](SPEC.md). Correctness is defined by the
@@ -76,11 +95,12 @@ conformant iff it passes every case. Implementations are intended to be thin.
 
 ## Status
 
-`v0.3.0-rc.1` (pre-release) — spec and conformance suites are in place, and all four
+`v0.4.0-rc.1` (pre-release) — spec and conformance suites are in place, and all four
 implementations (Go, Python, TypeScript, Rust) pass every read case in
-[testdata/cases/](testdata/cases/) and every editing case in
-[testdata/editcases/](testdata/editcases/). `Load(dir)` is unchanged from
-0.2.0; the editing surface is additive.
+[testdata/cases/](testdata/cases/), every editing case in
+[testdata/editcases/](testdata/editcases/) and every watching case in
+[testdata/watchcases/](testdata/watchcases/). `Load(dir)` is unchanged from
+0.2.0; editing and watching are additive.
 
 ## License
 
