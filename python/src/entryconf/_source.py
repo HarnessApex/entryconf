@@ -32,6 +32,29 @@ class OsSource:
         )
 
 
+class TrackingSource:
+    """Another source, recording every path a load asks about, read or not, so
+    a failed open can say which files it depended on (SPEC §12.3)."""
+
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+        self.seen: set[str] = set()
+
+    def read_file(self, path: Path) -> bytes:
+        self.seen.add(str(path))
+        return self.inner.read_file(path)
+
+    def is_file(self, path: Path) -> bool:
+        self.seen.add(str(path))
+        return self.inner.is_file(path)
+
+    def env_file_names(self, directory: Path) -> list[str]:
+        return self.inner.env_file_names(directory)
+
+    def paths(self) -> list[str]:
+        return sorted(self.seen)
+
+
 class OverlaySource:
     """Recorded bytes first, disk second; the ``*.env`` listing the snapshot saw."""
 

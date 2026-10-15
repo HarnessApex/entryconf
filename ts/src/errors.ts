@@ -1,5 +1,5 @@
 /**
- * Error codes are normative (SPEC §7, §10.9); messages are not.
+ * Error codes are normative (SPEC §7, §10.9, §12.4); messages are not.
  */
 export type ErrorCode =
   | "E_NO_ENTRYPOINT"
@@ -16,7 +16,9 @@ export type ErrorCode =
   | "E_PATH"
   | "E_STALE_PLAN"
   | "E_LOCKED"
-  | "E_WRITE";
+  | "E_WRITE"
+  // Watching code (SPEC §12.4), added in 0.4.0.
+  | "E_WATCH";
 
 /**
  * Every failure raised by `load()`, `open()`, and the editing operations is an

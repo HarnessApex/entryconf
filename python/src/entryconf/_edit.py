@@ -17,7 +17,7 @@ from ._jsonfmt import format_json
 from ._loader import Loader
 from ._lock import DEFAULT_LOCK_TIMEOUT, acquire_lock, atomic_write, release_lock
 from ._pointer import array_index, deep_copy, escape_token, parse_pointer, remove_at, set_at
-from ._source import DocRecord, OsSource, OverlaySource, Recorder, document_key
+from ._source import DocRecord, OsSource, OverlaySource, Recorder, TrackingSource, document_key
 
 OP_SET = "set"
 OP_REMOVE = "remove"
@@ -253,12 +253,21 @@ class Snapshot:
     _env_names: list[str] = field(repr=False, compare=False)
     _captured: dict[str, str] = field(repr=False, compare=False)
     _live: ProcEnv = field(repr=False, compare=False)
+    # SPEC §10.6's fingerprint over the variables the load looked up; refresh
+    # compares it (SPEC §12.2).
+    _vars_revision: str = field(default="", repr=False, compare=False)
 
     def to_json(self) -> dict[str, Any]:
         return {
             "dir": self.dir,
             "documents": {key: doc.to_json() for key, doc in self.documents.items()},
         }
+
+    def watch_set(self) -> dict[str, Any]:
+        """The snapshot's watch set (SPEC §12.1): the directory, for
+        entrypoints and ``*.env`` files appearing or going, and every
+        document by key, sorted by code point. Reads nothing from disk."""
+        return {"directory": ".", "documents": sorted(self.documents)}
 
     # -- provenance ---------------------------------------------------------
 
@@ -418,13 +427,24 @@ class Snapshot:
 
 def _open_with_env(config_dir: str | os.PathLike[str], captured: dict[str, str], live: ProcEnv) -> Snapshot:
     """``open`` with the captured environment and the live lookup injected."""
+    return _open_tracked(config_dir, captured, live, TrackingSource(OsSource()))
+
+
+def _open_tracked(
+    config_dir: str | os.PathLike[str], captured: dict[str, str], live: ProcEnv, src: TrackingSource
+) -> Snapshot:
+    """``open`` through ``src``, which records every path the load asked
+    about: what a watcher needs after a failed open (SPEC §12.3)."""
     directory = Path(os.path.abspath(config_dir))
     try:
         env_names = OsSource().env_file_names(directory)
     except OSError:
         env_names = []  # the load itself reports the failure
     rec = Recorder()
-    tree = Loader(OsSource(), captured.get, rec).load_tree(directory)
+    loader = Loader(src, captured.get, rec)
+    tree = loader.load_tree(directory)
+    assert loader.vars is not None
+    names = sorted(loader.vars.used)
     documents: dict[str, Document] = {}
     for path in rec.order:
         d = rec.docs[path]
@@ -454,6 +474,7 @@ def _open_with_env(config_dir: str | os.PathLike[str], captured: dict[str, str],
         _env_names=env_names,
         _captured=captured,
         _live=live,
+        _vars_revision=_variables_revision(names, loader.vars),
     )
 
 

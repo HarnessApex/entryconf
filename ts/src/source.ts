@@ -36,6 +36,37 @@ export const osSource: FileSource = {
   },
 };
 
+/**
+ * Another source, recording every path a load asks about, read or not, so a
+ * failed open can say which files it depended on (SPEC §12.3).
+ */
+export class TrackingSource implements FileSource {
+  readonly inner: FileSource;
+  readonly seen = new Set<string>();
+
+  constructor(inner: FileSource) {
+    this.inner = inner;
+  }
+
+  readFile(path: string): Uint8Array {
+    this.seen.add(path);
+    return this.inner.readFile(path);
+  }
+
+  isFile(path: string): boolean {
+    this.seen.add(path);
+    return this.inner.isFile(path);
+  }
+
+  envFileNames(dir: string): string[] {
+    return this.inner.envFileNames(dir);
+  }
+
+  paths(): string[] {
+    return [...this.seen].sort();
+  }
+}
+
 /** Recorded bytes first, disk second; the `*.env` listing the snapshot saw. */
 export class OverlaySource implements FileSource {
   readonly files: Map<string, Uint8Array>;

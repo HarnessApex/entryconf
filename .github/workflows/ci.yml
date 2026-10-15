@@ -55,7 +55,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
       - name: Install
-        run: uv pip install -e ./python pytest
+        run: uv pip install -e "./python[test]"
       - name: Test
         working-directory: python
         run: pytest

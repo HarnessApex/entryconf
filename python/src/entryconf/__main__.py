@@ -3,6 +3,8 @@
     python -m entryconf <dir>                         dump the tree (0.2.0 form)
     python -m entryconf inspect <dir> [<pointer>]     provenance / document listing
     python -m entryconf edit [-n|--dry-run] <dir> <request.json | ->
+    python -m entryconf refresh <dir> <change.json>    SPEC §13's operation: open,
+                                                      apply the change, refresh
 
 The exit convention is shared by every implementation:
 
@@ -23,19 +25,23 @@ otherwise report a mistyped flag as ``E_NO_ENTRYPOINT``.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
+from pathlib import Path
 from typing import Any, Sequence
 
 from . import SPEC_VERSION, __version__
 from ._edit import Edit, open as open_snapshot
 from ._errors import EntryconfError
 from ._loader import load
+from ._refresh import refresh
 
 _USAGE = (
     "usage: python -m entryconf <config-dir>\n"
     "       python -m entryconf inspect <config-dir> [<pointer>]\n"
     "       python -m entryconf edit [-n|--dry-run] <config-dir> <request.json | ->\n"
+    "       python -m entryconf refresh <config-dir> <change.json>\n"
     "       python -m entryconf --help | --version\n"
     "\n"
     "<config-dir> is a directory, never an option: a dash-led argument is a\n"
@@ -97,6 +103,35 @@ def _run(args: list[str]) -> int:
             out["committed"] = True
             out["revision"] = receipt.revision
         _emit(out)
+        return 0
+    if command == "refresh" and len(args) == 3 and not args[1].startswith("-"):
+        text = _read(args[2])
+        if text is None:
+            return 2
+        try:
+            change = json.loads(text)
+            files = change.get("files", {})
+            procenv = change.get("procenv", {})
+        except (ValueError, AttributeError) as exc:
+            print(f"entryconf: bad change: {exc}", file=sys.stderr)
+            return 2
+        snap = open_snapshot(args[1])
+        watch_set = snap.watch_set()
+        # SPEC §13's change: files written or removed by key, variables set or
+        # unset. A failed refresh is a result ("error"), not a failed command.
+        for key, value in files.items():
+            path = Path(snap.dir) / key
+            if value is None:
+                path.unlink()
+            else:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(value.encode("utf-8"))
+        for name, value in procenv.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        _emit({"watch": watch_set, **refresh(snap).to_json()})
         return 0
     print(_USAGE, file=sys.stderr)
     return 2
