@@ -1,6 +1,6 @@
 # entryconf (Rust)
 
-Implements **entryconf spec 0.3.0** (`../SPEC.md`): loading a config directory
+Implements **entryconf spec 0.4.0** (`../SPEC.md`): loading a config directory
 into a tree, and — since 0.3.0 — inspecting where each value comes from and
 editing JSON source documents (SPEC §10). Conformance is defined by the shared
 fixture suites in `../testdata/cases/` (reading) and `../testdata/editcases/`
@@ -10,7 +10,7 @@ fixture suites in `../testdata/cases/` (reading) and `../testdata/editcases/`
 
 ```toml
 [dependencies]
-entryconf = "0.3.0-rc.1"
+entryconf = "0.4.0-rc.1"
 ```
 
 Or, from inside this repository, as a path dependency:
@@ -100,6 +100,19 @@ Only JSON documents are writable: naming a YAML, TOML, or `*.env` document is
 the normalized form of SPEC §10.8 (two-space indent, keys sorted); every other
 file stays byte-for-byte unchanged. Plans resolve variables against the
 environment captured by `open`; a commit rechecks the live environment.
+
+### Watching (SPEC §12)
+
+```rust
+let r = entryconf::refresh(&snap);   // stale, snapshot (Some when stale), error, changed, documents
+
+// with the cargo feature "watch" (notify):
+let w = entryconf::watch::watch(dir, |c| validate(c.new.as_deref()), Default::default())?;
+w.close();
+```
+
+A crate without the `watch` feature takes no `notify` dependency. See
+`../docs/WATCHING.md`.
 
 ### Errors
 

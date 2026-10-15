@@ -52,6 +52,42 @@ impl FileSource for OsSource {
     }
 }
 
+/// Another source, recording every path a load asks about, read or not, so a
+/// failed open can say which files it depended on (SPEC §12.3).
+pub(crate) struct TrackingSource<'a> {
+    pub(crate) inner: &'a dyn FileSource,
+    pub(crate) seen: std::cell::RefCell<std::collections::BTreeSet<PathBuf>>,
+}
+
+impl<'a> TrackingSource<'a> {
+    pub(crate) fn new(inner: &'a dyn FileSource) -> Self {
+        TrackingSource {
+            inner,
+            seen: std::cell::RefCell::default(),
+        }
+    }
+
+    pub(crate) fn paths(&self) -> Vec<PathBuf> {
+        self.seen.borrow().iter().cloned().collect()
+    }
+}
+
+impl FileSource for TrackingSource<'_> {
+    fn read_file(&self, path: &Path) -> io::Result<Vec<u8>> {
+        self.seen.borrow_mut().insert(path.to_path_buf());
+        self.inner.read_file(path)
+    }
+
+    fn is_file(&self, path: &Path) -> bool {
+        self.seen.borrow_mut().insert(path.to_path_buf());
+        self.inner.is_file(path)
+    }
+
+    fn env_file_names(&self, dir: &Path) -> io::Result<Vec<String>> {
+        self.inner.env_file_names(dir)
+    }
+}
+
 /// Recorded bytes first, disk second; the `*.env` listing is the one the
 /// snapshot saw.
 pub(crate) struct OverlaySource {

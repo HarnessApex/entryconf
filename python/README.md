@@ -1,6 +1,6 @@
 # entryconf (Python)
 
-Implements the [entryconf spec](../SPEC.md) 0.3.0.
+Implements the [entryconf spec](../SPEC.md) 0.4.0.
 
 Loads a config directory — one `entrypoint.{json,yaml,yml,toml}`, its `*.env`
 peers, `@file:` includes and `$VAR` interpolation — into a single tree, and
@@ -100,6 +100,19 @@ Semantics worth knowing (the spec is normative):
 
 The new codes are exported as constants: `E_UNSUPPORTED_EDIT`, `E_EDIT`,
 `E_PATH`, `E_STALE_PLAN`, `E_LOCKED`, `E_WRITE` (SPEC §10.9).
+
+## Watch (SPEC §12)
+
+```python
+r = entryconf.refresh(snap)          # stale, snapshot, error, changed, documents
+
+from entryconf.watch import watch    # pip install "entryconf[watch]"
+with watch("envs/prod", on_change) as w:   # on_change raises to refuse
+    ...
+```
+
+`entryconf.watch` needs `watchdog`; `import entryconf` never does. See
+`../docs/WATCHING.md`.
 
 ## Command line
 

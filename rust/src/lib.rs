@@ -1,6 +1,6 @@
 //! entryconf — load a config directory into a single tree, and edit it.
 //!
-//! Implements [entryconf spec 0.3.0](../../SPEC.md): one
+//! Implements [entryconf spec 0.4.0](../../SPEC.md): one
 //! `entrypoint.{json,yaml,yml,toml}` per directory, `*.env` variable files as
 //! unordered peers with the process environment on top, `@file:` include
 //! grafting, and `$NAME` / `${NAME}` / `${NAME:-default}` interpolation.
@@ -20,6 +20,9 @@
 //!     Err(e) => eprintln!("{}: {}", e.code(), e.message()),
 //! }
 //! ```
+//!
+//! Since 0.4.0 it [`refresh`]es a snapshot (SPEC §12.2) and, with the cargo
+//! feature `watch`, watches a directory (`watch::watch`, SPEC §12.3).
 //!
 //! Since 0.3.0 the crate also edits JSON source documents (SPEC §10): [`open`]
 //! a directory as a [`Snapshot`], [`Snapshot::inspect`] where an effective
@@ -48,7 +51,10 @@ mod jsonfmt;
 mod lock;
 mod parse;
 mod pointer;
+mod refresh;
 mod source;
+#[cfg(feature = "watch")]
+pub mod watch;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -62,6 +68,9 @@ pub use crate::edit::{
 };
 #[doc(hidden)]
 pub use crate::edit::open_with_env;
+pub use crate::refresh::{refresh, DocumentChanges, Refreshed, WatchSet};
+#[doc(hidden)]
+pub use crate::refresh::refresh_with_env;
 pub use crate::error::{Error, ErrorCode};
 
 use crate::source::{lexical_clean, FileSource, RawGraft, Recorder};

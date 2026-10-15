@@ -576,7 +576,7 @@ Harness contract, in addition to §8's:
 
 ## 12. Watching
 
-*Draft for 0.4.0.* Sections 1–11 read a config directory once. This section
+*Added in 0.4.0.* Sections 1–11 read a config directory once. This section
 defines how a long-running program learns that what it loaded has changed,
 what changed, and how it takes the change, so that the four implementations
 agree on when a reload is due and what it reports. A program that never

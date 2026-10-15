@@ -105,14 +105,8 @@ fn graft(l: &Loader<'_>, target: &str, w: &Walk) -> Result<Value, Error> {
         ));
     };
 
-    // Cycle detection compares canonical paths, so a file reached under two
-    // names (a symlink, a `..` detour) is still one file.
-    let canonical = fs::canonicalize(&joined).map_err(|e| {
-        Error::new(
-            ErrorCode::Include,
-            format!("include {target:?} ({}): {e}", joined.display()),
-        )
-    })?;
+    // Asked of the source first, so a watcher learns of a missing target
+    // (SPEC §12.3); either failure is E_INCLUDE.
     if !l.src.is_file(&joined) {
         return Err(Error::new(
             ErrorCode::Include,
@@ -122,6 +116,14 @@ fn graft(l: &Loader<'_>, target: &str, w: &Walk) -> Result<Value, Error> {
             ),
         ));
     }
+    // Cycle detection compares canonical paths, so a file reached under two
+    // names (a symlink, a `..` detour) is still one file.
+    let canonical = fs::canonicalize(&joined).map_err(|e| {
+        Error::new(
+            ErrorCode::Include,
+            format!("include {target:?} ({}): {e}", joined.display()),
+        )
+    })?;
 
     if let Some(at) = w.stack.iter().position(|p| *p == canonical) {
         let mut chain: Vec<String> = w.stack[at..]

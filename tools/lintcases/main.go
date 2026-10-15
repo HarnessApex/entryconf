@@ -20,7 +20,13 @@
 //   - every entry under testdata/editcases/ (SPEC §11) is likewise a
 //     NN-kebab-name directory with a config/ directory, a request.json that
 //     is exactly one of the three request shapes, and exactly one of
-//     expected.json or expected_error.txt.
+//     expected.json or expected_error.txt;
+//   - every entry under testdata/watchcases/ (SPEC §13) is likewise a
+//     NN-kebab-name directory with a config/ directory, an optional outside/
+//     directory, a change.json of the SPEC §13 shape whose file keys stay
+//     inside the case (no absolute path, nothing above outside/), and an
+//     expected.json with the watch set and the refresh's fields (sorted
+//     lists; exactly one of "tree" and "error", the error a listed code).
 //
 // Usage:
 //
@@ -157,6 +163,10 @@ func (l *linter) run() error {
 		return err
 	}
 
+	if err := l.lintWatchSuite(filepath.Join(l.root, "testdata", "watchcases"), filepath.Join("testdata", "watchcases"), known); err != nil {
+		return err
+	}
+
 	for _, code := range sortedKeys(known) {
 		switch suite := knownCodes[code]; suite {
 		case "unit":
@@ -229,6 +239,175 @@ func (l *linter) lintSuite(casesDir, relDir string, knownCodes map[string]bool, 
 		l.errorf(relDir, "no case directories found")
 	}
 	return nil
+}
+
+// lintWatchSuite walks the SPEC §13 watching suite.
+func (l *linter) lintWatchSuite(casesDir, relDir string, knownCodes map[string]bool) error {
+	entries, err := os.ReadDir(casesDir)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", casesDir, err)
+	}
+	numbers := map[int]string{}
+	caseCount := 0
+	for _, entry := range entries {
+		name := entry.Name()
+		if strings.HasPrefix(name, ".") {
+			continue
+		}
+		rel := filepath.Join(relDir, name)
+		if !entry.IsDir() {
+			if name != "README.md" {
+				l.errorf(rel, "stray file in watchcases/: every entry must be a case directory")
+			}
+			continue
+		}
+		caseCount++
+		if match := caseNameRe.FindStringSubmatch(name); match == nil {
+			l.errorf(rel, "case directory name must be NN-kebab-name")
+		} else if n, convErr := strconv.Atoi(match[1]); convErr == nil {
+			if prev, dup := numbers[n]; dup {
+				l.errorf(rel, "case number %02d is already used by %s", n, prev)
+			} else {
+				numbers[n] = name
+			}
+		}
+		l.checkWatchCase(filepath.Join(casesDir, name), rel, knownCodes)
+	}
+	if caseCount == 0 {
+		l.errorf(relDir, "no case directories found")
+	}
+	return nil
+}
+
+func (l *linter) checkWatchCase(dir, rel string, knownCodes map[string]bool) {
+	if info, err := os.Stat(filepath.Join(dir, "config")); err != nil || !info.IsDir() {
+		l.errorf(rel, "missing config/ directory")
+	}
+	if info, err := os.Stat(filepath.Join(dir, "outside")); err == nil && !info.IsDir() {
+		l.errorf(filepath.Join(rel, "outside"), "outside must be a directory")
+	}
+	for _, stray := range []string{"expected_error.txt", "request.json"} {
+		if isFile(filepath.Join(dir, stray)) {
+			l.errorf(filepath.Join(rel, stray), "a watching case has no %s (SPEC §13): a failed refresh is expected.json's \"error\"", stray)
+		}
+	}
+	if isFile(filepath.Join(dir, "procenv.json")) {
+		var env map[string]string
+		if data, err := os.ReadFile(filepath.Join(dir, "procenv.json")); err != nil || json.Unmarshal(data, &env) != nil {
+			l.errorf(filepath.Join(rel, "procenv.json"), "must be a JSON object of strings")
+		}
+	}
+
+	where := filepath.Join(rel, "change.json")
+	var change map[string]any
+	if data, err := os.ReadFile(filepath.Join(dir, "change.json")); err != nil {
+		l.errorf(where, "missing change.json")
+	} else if err := json.Unmarshal(data, &change); err != nil {
+		l.errorf(where, "invalid JSON object: %v", err)
+	} else {
+		for _, k := range sortedKeys(change) {
+			switch k {
+			case "files":
+				files, ok := change[k].(map[string]any)
+				if !ok {
+					l.errorf(where, `"files" must be an object of text or null by key`)
+					continue
+				}
+				for _, key := range sortedKeys(files) {
+					if _, ok := files[key].(string); !ok && files[key] != nil {
+						l.errorf(where, "files[%q] must be a string or null", key)
+					}
+					// The harness opens <work>/config with outside/ copied to
+					// <work>: a key may climb one level, never further.
+					clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(key)))
+					if filepath.IsAbs(key) || clean == ".." || strings.HasPrefix(clean, "../..") || clean == "." {
+						l.errorf(where, "files key %q leaves the case (keys are relative to config/; ../ reaches outside/)", key)
+					}
+				}
+			case "procenv":
+				env, ok := change[k].(map[string]any)
+				if !ok {
+					l.errorf(where, `"procenv" must be an object of string or null`)
+					continue
+				}
+				for _, name := range sortedKeys(env) {
+					if _, ok := env[name].(string); !ok && env[name] != nil {
+						l.errorf(where, "procenv[%q] must be a string or null", name)
+					}
+				}
+			default:
+				l.errorf(where, "unknown field %q (want \"files\" and/or \"procenv\")", k)
+			}
+		}
+	}
+
+	where = filepath.Join(rel, "expected.json")
+	var expected map[string]any
+	data, err := os.ReadFile(filepath.Join(dir, "expected.json"))
+	if err != nil {
+		l.errorf(where, "missing expected.json")
+		return
+	}
+	if err := json.Unmarshal(data, &expected); err != nil {
+		l.errorf(where, "invalid JSON object: %v", err)
+		return
+	}
+	for _, k := range sortedKeys(expected) {
+		switch k {
+		case "watch", "stale", "error", "tree", "changed", "documents":
+		default:
+			l.errorf(where, "unknown field %q", k)
+		}
+	}
+	_, hasTree := expected["tree"]
+	code, hasError := expected["error"]
+	if hasTree == hasError {
+		l.errorf(where, `exactly one of "tree" and "error" (SPEC §13)`)
+	}
+	if hasError {
+		if c, ok := code.(string); !ok || !knownCodes[c] {
+			l.errorf(where, "error %v is not a code listed in testdata/errors.json", code)
+		}
+	}
+	if _, ok := expected["stale"].(bool); !ok {
+		l.errorf(where, `"stale" must be a boolean`)
+	}
+	sortedList := func(field string, v any) {
+		list, ok := v.([]any)
+		if !ok {
+			l.errorf(where, "%s must be an array of strings", field)
+			return
+		}
+		prev := ""
+		for i, item := range list {
+			str, ok := item.(string)
+			if !ok {
+				l.errorf(where, "%s[%d] must be a string", field, i)
+				return
+			}
+			if i > 0 && str <= prev {
+				l.errorf(where, "%s must be sorted by code point without duplicates", field)
+				return
+			}
+			prev = str
+		}
+	}
+	if watch, ok := expected["watch"].(map[string]any); !ok {
+		l.errorf(where, `"watch" must be {"directory": ".", "documents": [...]}`)
+	} else {
+		if watch["directory"] != "." {
+			l.errorf(where, `watch.directory must be "."`)
+		}
+		sortedList("watch.documents", watch["documents"])
+	}
+	sortedList("changed", expected["changed"])
+	if docs, ok := expected["documents"].(map[string]any); !ok || len(docs) != 3 {
+		l.errorf(where, `"documents" must be {"added", "removed", "changed"}`)
+	} else {
+		for _, k := range []string{"added", "removed", "changed"} {
+			sortedList("documents."+k, docs[k])
+		}
+	}
 }
 
 // checkRequest validates an editing case's request.json (SPEC §11): exactly

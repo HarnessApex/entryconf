@@ -37,6 +37,12 @@ copy of the case's ``config/`` per implementation:
   implementations are checked to agree on the *plan*; the stale-plan verdict
   itself is pinned by each implementation's own harness.
 
+The WATCHING suite (``testdata/watchcases/``, SPEC §13) runs each
+implementation's ``refresh <dir> change.json`` against a fresh copy of the
+case's ``config/`` (with ``outside/`` beside it): the watch set, ``stale``,
+``error``, ``tree``, ``changed`` and ``documents`` must match ``expected.json``
+and each other.
+
 Usage::
 
     python3 tools/crosscheck/crosscheck.py [-root DIR] [-case NAME]... [-v]
@@ -187,8 +193,16 @@ def case_variable_names(case: Path) -> set[str]:
     if request.is_file():
         # An editing case may write an expression naming a variable.
         names |= set(_REFERENCE_RE.findall(request.read_text(encoding="utf-8")))
-    config = case / "config"
-    if config.is_dir():
+    change = case / "change.json"
+    if change.is_file():
+        # A watching case may set or unset a variable, or write a file naming one.
+        text = change.read_text(encoding="utf-8")
+        names |= set(json.loads(text).get("procenv", {}))
+        names |= set(_REFERENCE_RE.findall(text))
+    for sub in ("config", "outside"):
+        config = case / sub
+        if not config.is_dir():
+            continue
         for path in sorted(config.rglob("*")):
             if not path.is_file():
                 continue
@@ -467,6 +481,49 @@ def run_edit_case(impls: list[Impl], case: Path, env: dict[str, str], workdir: P
     return row, kind_label, agree
 
 
+def run_watch_case(impls: list[Impl], case: Path, env: dict[str, str], workdir: Path,
+                   failures: list[str]) -> tuple[dict[str, Result], str]:
+    """Run one watching case through every implementation's ``refresh``.
+
+    Returns per-implementation results and the agreement cell.
+    """
+    expected = normalize(json.loads((case / "expected.json").read_text(encoding="utf-8")))
+    row: dict[str, Result] = {}
+    outputs: dict[str, Any] = {}
+    for impl in impls:
+        if impl.edit_argv is None:
+            row[impl.name] = Result(False, "no editing CLI")
+            continue
+        work = workdir / "watch" / impl.name / case.name
+        if work.exists():
+            shutil.rmtree(work)
+        shutil.copytree(case / "config", work / "config")
+        if (case / "outside").is_dir():
+            shutil.copytree(case / "outside", work, dirs_exist_ok=True)
+        result, out = run_edit_json(impl, ["refresh", str(work / "config"), str(case / "change.json")], env)
+        row[impl.name] = result
+        if not result.ok:
+            continue
+        got = normalize(out)
+        outputs[impl.name] = got
+        found = diff(got, expected)
+        if found:
+            row[impl.name] = Result(False, f"differs from expected.json at {found}")
+    names = [impl.name for impl in impls]
+    got_names = [n for n in names if n in outputs]
+    pair_problems: list[str] = []
+    for i, left in enumerate(got_names):
+        for right in got_names[i + 1:]:
+            found = diff(outputs[left], outputs[right])
+            if found:
+                pair_problems.append(f"{left} vs {right}: {found}")
+    for problem in pair_problems:
+        failures.append(f"{case.name}: {problem}")
+    if pair_problems:
+        return row, "DIFF"
+    return row, ("n/a" if len(got_names) < len(names) else "ok")
+
+
 def main(argv: list[str]) -> int:
     here = Path(__file__).resolve()
     parser = argparse.ArgumentParser(description="cross-implementation differ for entryconf")
@@ -501,8 +558,10 @@ def main(argv: list[str]) -> int:
     cases = sorted(p for p in cases_dir.iterdir() if p.is_dir())
     wanted: set[str] = set(args.case)
     if args.case:
-        edit_names = {p.name for p in (root / "testdata" / "editcases").iterdir()} \
-            if (root / "testdata" / "editcases").is_dir() else set()
+        edit_names = set()
+        for suite in ("editcases", "watchcases"):
+            if (root / "testdata" / suite).is_dir():
+                edit_names |= {p.name for p in (root / "testdata" / suite).iterdir()}
         cases = [c for c in cases if c.name in wanted]
         missing = sorted(wanted - {c.name for c in cases} - edit_names)
         if missing:
@@ -595,6 +654,29 @@ def main(argv: list[str]) -> int:
             print(f"{case.name.ljust(ewidth)}  {kind.ljust(7)}  " + "  ".join(cells) + f"  {agree}")
         shutil.rmtree(workdir / "edit", ignore_errors=True)
 
+    # The watching suite (SPEC §13).
+    watch_dir = root / "testdata" / "watchcases"
+    watch_cases = sorted(p for p in watch_dir.iterdir() if p.is_dir()) if watch_dir.is_dir() else []
+    if args.case:
+        watch_cases = [c for c in watch_cases if c.name in wanted]
+    if watch_cases:
+        wwidth = max([len(c.name) for c in watch_cases] + [4])
+        header = f"{'watchcase'.ljust(wwidth)}  kind     " + "  ".join(n.ljust(7) for n in names) + "  agree"
+        print()
+        print(header)
+        print("-" * len(header))
+        for case in watch_cases:
+            env = case_env(case)
+            row, agree = run_watch_case(impls, case, env, workdir, failures)
+            cells = []
+            for name in names:
+                result = row[name]
+                cells.append(("PASS" if result.ok else "FAIL").ljust(7))
+                if not result.ok:
+                    failures.append(f"{case.name}: {name}: {result.detail}")
+            print(f"{case.name.ljust(wwidth)}  {'refresh'.ljust(7)}  " + "  ".join(cells) + f"  {agree}")
+        shutil.rmtree(workdir / "watch", ignore_errors=True)
+
     print()
     if failures:
         print(f"crosscheck: {len(failures)} problem(s):", file=sys.stderr)
@@ -605,7 +687,8 @@ def main(argv: list[str]) -> int:
             print(f"  ... and {len(failures) - 40} more (-v for all)", file=sys.stderr)
         return 1
 
-    print(f"crosscheck: {len(cases)} case(s) + {len(edit_cases)} editing case(s) x {len(impls)} "
+    print(f"crosscheck: {len(cases)} case(s) + {len(edit_cases)} editing case(s) + "
+          f"{len(watch_cases)} watching case(s) x {len(impls)} "
           f"implementation(s) ({', '.join(names)}) — all agree with the fixtures and with each other")
     return 0
 

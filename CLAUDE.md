@@ -24,11 +24,11 @@ testdata/cases/       read fixtures: config/ + expected.json
                       or expected_error.txt (+ optional procenv.json)
 testdata/editcases/   editing fixtures: config/ + request.json + expected.json
                       or expected_error.txt (+ optional procenv.json)
-testdata/watchcases/  watching fixtures (SPEC §12–13, draft for 0.4.0): config/
-                      + change.json + expected.json
+testdata/watchcases/  watching fixtures (SPEC §12–13): config/ (+ outside/)
+                      + change.json + expected.json (+ optional procenv.json)
 testdata/errors.json  the error codes (SPEC §7, §10.9, §12.4) and which suite covers each
 docs/EDITING.md       editing API tour + integration handoff
-docs/WATCHING.md      watching: what its pull request still owes
+docs/WATCHING.md      watching API tour + integration handoff
 go/                   Go implementation (+ cmd/entryconf: dump, inspect, edit)
 python/               Python implementation
 ts/                   TypeScript implementation
@@ -71,10 +71,15 @@ tools/crosscheck/     compares implementation output across languages
 
 - Public API: a single `Load(dir)` in local idiomatic casing, returning the
   tree as the language's natural map type (SPEC §9). Keep the surface minimal.
-- The test suite must be a harness that walks `../testdata/cases/` and one
-  that walks `../testdata/editcases/` — do not hand-write per-case tests that
-  could drift from the shared fixtures.
-- The editing CLI (`inspect <dir> [ptr]`, `edit [-n] <dir> <request>`) must
+- The test suite must be a harness that walks `../testdata/cases/`, one
+  that walks `../testdata/editcases/` and one that walks
+  `../testdata/watchcases/` — do not hand-write per-case tests that could
+  drift from the shared fixtures. `Watch` (SPEC §12.3) is covered by unit
+  tests against a real directory.
+- Watching's file-event dependency goes in a separate package or optional
+  feature (Go `go/watch`, Python `entryconf[watch]`, Rust feature `watch`).
+- The editing CLI (`inspect <dir> [ptr]`, `edit [-n] <dir> <request>`,
+  `refresh <dir> <change>`) must
   print the same JSON shapes as the others so `tools/crosscheck` can diff it.
 - Use stock parsers (JSON/YAML/TOML) per SPEC §2 restrictions: YAML 1.2 core
   schema, TOML datetimes → RFC 3339 strings.

@@ -85,7 +85,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Test
         working-directory: rust
-        run: cargo test
+        run: |
+          cargo test
+          cargo test --features watch
 
   crosscheck:
     name: cross-implementation diff
