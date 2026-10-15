@@ -24,8 +24,11 @@ testdata/cases/       read fixtures: config/ + expected.json
                       or expected_error.txt (+ optional procenv.json)
 testdata/editcases/   editing fixtures: config/ + request.json + expected.json
                       or expected_error.txt (+ optional procenv.json)
-testdata/errors.json  the error codes (SPEC §7, §10.9) and which suite covers each
+testdata/watchcases/  watching fixtures (SPEC §12–13, draft for 0.4.0): config/
+                      + change.json + expected.json
+testdata/errors.json  the error codes (SPEC §7, §10.9, §12.4) and which suite covers each
 docs/EDITING.md       editing API tour + integration handoff
+docs/WATCHING.md      watching: what its pull request still owes
 go/                   Go implementation (+ cmd/entryconf: dump, inspect, edit)
 python/               Python implementation
 ts/                   TypeScript implementation

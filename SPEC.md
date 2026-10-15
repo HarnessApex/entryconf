@@ -217,6 +217,12 @@ snapshot with `Inspect`, `Plan`, and `Commit` operations in local idiom.
 `Load(dir)` MUST keep its 0.2.0 behavior exactly; the editing surface is
 additive and a program that never calls it is unaffected by §10.
 
+Watching (§12) is exposed as `Refresh(snapshot)` and a snapshot's watch set
+beside `Open`, and `Watch(dir, callback, options)` returning a watcher with
+`Close`. Where watching needs a dependency the reading surface does not (a
+platform file-event library), it SHOULD be a separate package or an optional
+feature, so a program that only loads takes none.
+
 ## 10. Editing
 
 Sections 1–8 define how a config directory is *read*. This section defines
@@ -567,3 +573,122 @@ Harness contract, in addition to §8's:
 - Compare `documents` values structurally (numbers numerically), not
   byte-for-byte: §10.8 allows implementations to differ in the spelling of
   non-integral numbers.
+
+## 12. Watching
+
+*Draft for 0.4.0.* Sections 1–11 read a config directory once. This section
+defines how a long-running program learns that what it loaded has changed,
+what changed, and how it takes the change, so that the four implementations
+agree on when a reload is due and what it reports. A program that never
+watches is unaffected.
+
+### 12.1 The watch set
+
+A snapshot's **watch set** is what can change the result of opening its
+directory again:
+
+- the **config directory** itself, for any entry appearing, disappearing or
+  being renamed whose name is an entrypoint name (§3) or ends in `.env` (§4):
+  a second entrypoint, a new or removed `*.env` file;
+- every **document** of the snapshot (§10.2), by its path as the load
+  resolved it (an include through a symbolic link is watched as named).
+
+The watch set is a pure function of the snapshot and reads nothing from disk.
+Implementations expose it as `{"directory": ".", "documents": [<key>…]}`, the
+keys sorted by code point.
+
+### 12.2 Refresh and staleness
+
+`Refresh(snapshot)` opens the snapshot's directory again (§10.2), against the
+process environment as it is now, and reports:
+
+| Field | Meaning |
+|---|---|
+| `stale` | true iff the new open failed, read a different set of document keys, read a document whose revision differs, or looked up a variable whose value differs (by §10.6's variables fingerprint) |
+| `snapshot` | the new snapshot; absent when the open failed |
+| `error` | the open's error code (§7), when it failed; the old snapshot stays valid |
+| `changed` | the affected pointers (§10.6) between the old and the new effective tree; empty when the trees are equal or the open failed |
+| `documents` | `{"added", "removed", "changed"}`: document keys, each sorted by code point |
+
+A refresh that is not stale has an empty `changed` and empty `documents`
+lists, and its snapshot equals the old one in every field. A stale refresh
+MAY have an empty `changed`: a document rewritten with the same effective
+values, or a new `*.env` file nothing reads, changes the documents but not
+the tree. Refreshing never writes a file.
+
+### 12.3 Watch
+
+`Watch(dir, callback, options)` opens `dir` (§10.2) and calls `callback` with
+a **change** whenever a refresh of the current snapshot is stale. Its
+behavior, which every implementation that offers it MUST follow:
+
+- **The current snapshot.** The watcher holds one: the snapshot `Watch`
+  opened, then each snapshot a callback accepted. Every refresh is of the
+  current snapshot.
+- **The change.** `{old, new, changed, documents, error}`: `old` the current
+  snapshot, `new` the refreshed one (absent on failure) and the rest as
+  §12.2.
+- **Accept or refuse.** The callback returns success or an error. Success
+  makes `new` the current snapshot; an error (the program's own validation
+  refused the values) keeps `old` current, and the next refresh is again of
+  `old`. A failed open is delivered with `error` set and `new` absent, and
+  keeps `old` current whatever the callback returns.
+- **One at a time.** Callbacks never overlap. Changes on disk while a
+  callback runs are gathered and delivered as one change after it returns,
+  refreshed from the then-current snapshot.
+- **Gathering.** Events within `settle` of each other (an option; default
+  100 ms) are taken as one: a refresh runs `settle` after the last event of a
+  burst. An editor's write-to-temp-and-rename is one change.
+- **No empty calls.** A refresh that is not stale calls nothing.
+- **The watch follows the snapshot.** Each time the current snapshot changes
+  the watcher watches the new snapshot's watch set. After a failed open it
+  also watches the directory of every path that open tried and failed to read
+  (an `@file:` target not yet created), so creating it is seen.
+- **No polling** where the platform reports file changes; an implementation
+  MAY poll only where it reports none, and MUST document that it does.
+- **Closing.** `Close()` stops the watch; no callback starts after it
+  returns, and one running is waited for.
+- **Failure to watch.** A watch the platform refuses (a limit reached, a
+  directory gone) is `E_WATCH` (§12.4), delivered as a change's `error`, the
+  current snapshot kept.
+
+Variables from the process environment are not watched: a program that
+changes its own environment calls `Refresh`.
+
+### 12.4 Watching errors
+
+| Code | Condition |
+|---|---|
+| `E_WATCH` | the platform refused to watch a path of the watch set; the current snapshot is unchanged |
+
+`E_WATCH` cannot be carried by a fixture: each implementation covers it with
+a unit test (`"suite": "unit"` in `testdata/errors.json`).
+
+## 13. Watching conformance suite
+
+Each directory under `testdata/watchcases/` is one watching case:
+
+```
+watchcases/<name>/
+  config/               the initial config directory
+  procenv.json          optional: process env vars the harness MUST set
+  change.json           what the harness changes between Open and Refresh
+  expected.json         the expected watch set and refresh
+```
+
+`change.json` is `{"files": {"<key>": "<text>" | null}, "procenv": {...}}`:
+each file written with its text, or removed when `null`, in the config
+directory (keys as §10.2, so an include outside it is reachable); each
+variable set, or unset when `null`. `expected.json` is
+`{"watch", "stale", "error", "tree", "changed", "documents"}`: the initial
+snapshot's watch set (§12.1), then the refresh's fields (§12.2), `tree`
+being the new snapshot's effective tree (absent with `error`).
+
+Harness contract, in addition to §8's and §11's:
+
+- `Open` the copy, take its watch set, apply `change.json`, then `Refresh`.
+- An empty `change.json` (`{}`) pins that an unchanged directory is not
+  stale.
+- `Watch` itself is not exercised by fixtures (it depends on the platform's
+  events); each implementation tests §12.3's rules with unit tests against a
+  real directory.
